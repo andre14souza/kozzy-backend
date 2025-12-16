@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 
 export const autenticar = (req, res, next) => {
-  let token = req.cookies.token;
+  let token = req.cookies.token; // <--- CORRETO: Lê do cookie
 
   // SE não achou no cookie, tenta pegar do Header (padrão do Swagger)
   if (!token && req.headers.authorization) {
