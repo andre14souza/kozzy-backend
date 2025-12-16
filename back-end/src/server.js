@@ -14,7 +14,7 @@ const app = express();
 
 // 💥 NOVO: ESSENCIAL PARA AMBIENTES PROXY (RENDER). Diz ao Express para confiar no cabeçalho HTTPS
 app.set('trust proxy', 1); 
-
+app.use(cookieParser());
 // Middlewares
 app.use(cors({
   origin: 'https://kozzy-frontend.vercel.app', 
