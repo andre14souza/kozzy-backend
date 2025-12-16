@@ -132,11 +132,11 @@ export const login = async (req, res) => {
       { expiresIn: "1h" }
     );
 
-    res.cookie("token", token, {
+   res.cookie("token", token, {
       httpOnly: true,
-      secure: false, 
-      sameSite: "lax",
-      maxAge: 60 * 60 * 1000,
+      secure: true, // OBRIGATÓRIO: Permite que o cookie seja enviado apenas via HTTPS (Render)
+      sameSite: "none", // OBRIGATÓRIO: Permite o envio de um domínio para outro (Vercel para Render)
+      maxAge: 60 * 60 * 1000, // 1 hora
     });
 
     res.json({
