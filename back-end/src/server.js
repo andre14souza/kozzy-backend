@@ -21,14 +21,16 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(cookieParser());
+app.use("/api/usuarios", usuarioRoutes);
 app.use("/api/atendimentos", atendimentoRoutes);
+app.use("/api/atendimentos", usuarioRoutes);
 app.use("/api/areas", areaRoutes);
 
 // Conexão ao banco
 connectDB();
 
 // Rotas
-app.use("/api/usuarios", usuarioRoutes);
+
 
 // Rota padrão
 app.get("/", (req, res) => res.send("API rodando com sucesso!"));
