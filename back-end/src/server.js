@@ -1,29 +1,33 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
-import cookieParser from "cookie-parser"; // Importante para ler o cookie
+import cookieParser from "cookie-parser";
 import { connectDB } from "./config/db.js";
 import usuarioRoutes from "./routes/usuarioRoutes.js";
 import atendimentoRoutes from "./routes/atendimentoRoutes.js";
 import areaRoutes from "./routes/areaRoutes.js";
 import { swaggerDocs } from "./swagger.js";
 
+
 dotenv.config();
 const app = express();
+
+// 💥 NOVO: ESSENCIAL PARA AMBIENTES PROXY (RENDER). Diz ao Express para confiar no cabeçalho HTTPS
+app.set('trust proxy', 1); 
 
 // Middlewares
 app.use(cors({
   origin: 'https://kozzy-frontend.vercel.app', 
-  credentials: true, // Essencial para enviar o cookie
+  credentials: true, 
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
 
-// 💥 CORREÇÃO PRINCIPAL: O COOKIE-PARSER PRECISA VIR ANTES DAS ROTAS!
+// COOKIE-PARSER ANTES DAS ROTAS (corrigido antes)
 app.use(cookieParser()); 
 
-// Rotas: (Agora o cookie já foi lido)
+// Rotas: 
 app.use("/api/usuarios", usuarioRoutes);
 app.use("/api/atendimentos", atendimentoRoutes);
 app.use("/api/areas", areaRoutes);
