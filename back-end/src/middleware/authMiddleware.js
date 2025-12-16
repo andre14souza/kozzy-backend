@@ -1,17 +1,13 @@
 import jwt from "jsonwebtoken";
 
 export const autenticar = (req, res, next) => {
-  let token = req.cookies.token; // <--- CORRETO: Lê do cookie
-
+const authHeader = req.headers.authorization;
   // SE não achou no cookie, tenta pegar do Header (padrão do Swagger)
-  if (!token && req.headers.authorization) {
-    const parts = req.headers.authorization.split(' ');
-    if (parts.length === 2 && parts[0] === 'Bearer') {
-      token = parts[1];
-    }
+ if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: "Acesso negado. Token não encontrado no Header." });
   }
 
-  if (!token) return res.status(401).json({ message: "Acesso negado. Token não encontrado." });
+  const token = authHeader.split(' ')[1]; // Pega o token após "Bearer "
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
