@@ -27,7 +27,6 @@ app.use(express.json());
 // COOKIE-PARSER ANTES DAS ROTAS (corrigido antes)
 app.use(cookieParser()); 
 app.get('/api/test-cookie', (req, res) => {
-    // Retorna todos os cookies que o Express conseguiu ler
     res.json({ cookies: req.cookies, tokenPresent: !!req.cookies.token });
 });
 // Rotas: 
