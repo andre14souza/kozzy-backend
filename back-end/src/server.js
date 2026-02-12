@@ -17,8 +17,8 @@ app.set('trust proxy', 1);
 app.use(cookieParser());
 // Middlewares
 app.use(cors({
-  origin: 'https://kozzy-frontend.vercel.app', 
-  credentials: true, 
+  origin: [/vercel.app$/], // Isso aceita qualquer link que termine em .vercel.app
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
