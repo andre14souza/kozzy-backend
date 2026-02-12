@@ -9,10 +9,19 @@ export const criarAtendimento = async (req, res) => {
         return res.status(403).json({ message: "Acesso negado. Você não tem permissão para abrir chamados." });
     }
 
+   const dadosAtendimento = { ...req.body };
+
+    if (!dadosAtendimento.numeroProtocolo) {
+        const data = new Date();
+        const sufixo = Math.floor(Math.random() * 1000);
+        dadosAtendimento.numeroProtocolo = `EML- ${data.getFullYear()}${data.getMonth() + 1}-${sufixo}`;
+    }
+
     const novoAtendimento = new Atendimento({
-      ...req.body,
+      ...dadosAtendimento,
       criadoPor: req.usuario.id,
     });
+
     await novoAtendimento.save();
     res.status(201).json(novoAtendimento);
     
@@ -32,7 +41,7 @@ export const listarAtendimentos = async (req, res) => {
     // --- LÓGICA DE SEGURANÇA VISUAL ---
     
     // CASO 1: Se NÃO for Supervisor, aplicamos o filtro de área
-    if (perfilAcesso !== 'supervisor') {
+    if (perfilAcesso !== 'supervisor' && perfilAcesso !== 'atendente') {
         const areaVinculada = await Area.findOne({ usuarioId: id });
 
         // Se o funcionário não tiver nenhuma área vinculada, ele não vê nada
