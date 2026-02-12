@@ -4,21 +4,23 @@ import Area from "../models/Area.js";
 // Criar atendimento
 export const criarAtendimento = async (req, res) => {
   try {
-    // Só permite criar se for Supervisor ou Atendente
     if (req.usuario.perfilAcesso !== 'supervisor' && req.usuario.perfilAcesso !== 'atendente') {
-        return res.status(403).json({ message: "Acesso negado. Você não tem permissão para abrir chamados." });
+        return res.status(403).json({ message: "Acesso negado." });
     }
 
-   const dadosAtendimento = { ...req.body };
+    // Criamos uma cópia dos dados para não alterar o req.body original
+    const dadosParaSalvar = { ...req.body };
 
-    if (!dadosAtendimento.numeroProtocolo) {
-        const data = new Date();
-        const sufixo = Math.floor(Math.random() * 1000);
-        dadosAtendimento.numeroProtocolo = `EML- ${data.getFullYear()}${data.getMonth() + 1}-${sufixo}`;
+    // LÓGICA DE PROTOCOLO AUTOMÁTICO:
+    // Se o numeroProtocolo estiver vazio ou não existir, geramos um
+    if (!dadosParaSalvar.numeroProtocolo) {
+        const timestamp = Date.now();
+        const aleatorio = Math.floor(Math.random() * 1000);
+        dadosParaSalvar.numeroProtocolo = `AUTO-${timestamp}-${aleatorio}`;
     }
 
     const novoAtendimento = new Atendimento({
-      ...dadosAtendimento,
+      ...dadosParaSalvar,
       criadoPor: req.usuario.id,
     });
 
