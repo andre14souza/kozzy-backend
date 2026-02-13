@@ -74,11 +74,11 @@ export const atualizarAtendimento = async (req, res) => {
     };
 
     const atualizado = await Atendimento.findByIdAndUpdate(
-      id,
-      { $set: dadosFormatados }, // O $set força a gravação
+      req.params.id,
+      req.body, 
       { new: true }
-    );
-
+    ).populate('atendente', 'nomeCompleto');
+    
     if (!atualizado) return res.status(404).json({ message: "Chamado não encontrado" });
     res.json(atualizado);
   } catch (error) {
