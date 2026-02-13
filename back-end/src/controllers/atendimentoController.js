@@ -6,29 +6,21 @@ export const criarAtendimento = async (req, res) => {
     if (req.usuario.perfilAcesso !== 'supervisor' && req.usuario.perfilAcesso !== 'atendente') {
         return res.status(403).json({ message: "Acesso negado." });
     }
-    
     const dadosParaSalvar = { ...req.body };
-    if (req.usuario.perfilAcesso !== 'supervisor') {
-        dadosParaSalvar.atendente = null;
-    }
     if (!dadosParaSalvar.numeroProtocolo) {
-        const timestamp = Date.now();
-        const aleatorio = Math.floor(Math.random() * 1000);
-        dadosParaSalvar.numeroProtocolo = `AUTO-${timestamp}-${aleatorio}`;
+        dadosParaSalvar.numeroProtocolo = `AUTO-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     }
+    const novoAtendimento = new Atendimento({ ...dadosParaSalvar, criadoPor: req.usuario.id });
+    await novoAtendimento.save();
 
-const novoAtendimento = new Atendimento({ 
-      ...dadosParaSalvar, 
-      criadoPor: req.usuario.id // Quem criou fica registrado aqui
-    });    await novoAtendimento.save();
-
-    // CORREÇÃO: Faz o populate antes de enviar a resposta para o Angular
+    // CORREÇÃO: Busca o nome do atendente antes de enviar para o Angular
     const populado = await Atendimento.findById(novoAtendimento._id)
+      .populate('criadoPor', 'nomeCompleto')
       .populate('atendente', 'nomeCompleto');
 
-res.status(201).json(populado);
+    res.status(201).json(populado);
   } catch (error) {
-    res.status(500).json({ message: "Erro ao criar atendimento", error });
+    res.status(500).json({ message: "Erro ao criar", error });
   }
 };
 
