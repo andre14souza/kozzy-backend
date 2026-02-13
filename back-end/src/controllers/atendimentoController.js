@@ -1,128 +1,98 @@
 import Atendimento from "../models/Atendimento.js";
 import Area from "../models/Area.js";
 
-// Criar atendimento
 export const criarAtendimento = async (req, res) => {
   try {
     if (req.usuario.perfilAcesso !== 'supervisor' && req.usuario.perfilAcesso !== 'atendente') {
         return res.status(403).json({ message: "Acesso negado." });
     }
-
-    // Criamos uma cópia dos dados para não alterar o req.body original
     const dadosParaSalvar = { ...req.body };
-
-    // LÓGICA DE PROTOCOLO AUTOMÁTICO:
-    // Se o numeroProtocolo estiver vazio ou não existir, geramos um
     if (!dadosParaSalvar.numeroProtocolo) {
         const timestamp = Date.now();
         const aleatorio = Math.floor(Math.random() * 1000);
         dadosParaSalvar.numeroProtocolo = `AUTO-${timestamp}-${aleatorio}`;
     }
-
-    const novoAtendimento = new Atendimento({
-      ...dadosParaSalvar,
-      criadoPor: req.usuario.id,
-    });
-
+    const novoAtendimento = new Atendimento({ ...dadosParaSalvar, criadoPor: req.usuario.id });
     await novoAtendimento.save();
     res.status(201).json(novoAtendimento);
-    
   } catch (error) {
-    console.error("❌ ERRO AO SALVAR:", error);
     res.status(500).json({ message: "Erro ao criar atendimento", error });
   }
 };
 
-// Listar atendimentos do usuário logado conforme áreas de acesso
 export const listarAtendimentos = async (req, res) => {
   try {
-    const { id, perfilAcesso } = req.usuario; // Dados vindos do Token JWT
-
+    const { id, perfilAcesso } = req.usuario;
     let filtro = {};
-
-    // --- LÓGICA DE SEGURANÇA VISUAL ---
-    
-    // CASO 1: Se NÃO for Supervisor, aplicamos o filtro de área
     if (perfilAcesso !== 'supervisor' && perfilAcesso !== 'atendente') {
         const areaVinculada = await Area.findOne({ usuarioId: id });
-
-        // Se o funcionário não tiver nenhuma área vinculada, ele não vê nada
-        if (!areaVinculada || !areaVinculada.areas || areaVinculada.areas.length === 0) {
-            return res.json([]); 
-        }
-
-        // Aplica o filtro: Só traz chamados onde a categoriaAssunto está nas áreas dele
+        if (!areaVinculada || !areaVinculada.areas || areaVinculada.areas.length === 0) return res.json([]); 
         filtro = { categoriaAssunto: { $in: areaVinculada.areas } };
     }
-    
-    // CASO 2: Se for Supervisor, o 'filtro' continua vazio {}, ou seja, busca tudo.
-
     const atendimentos = await Atendimento.find(filtro)
-      .populate('criadoPor', 'nomeCompleto email') // Traz o nome do usuário
+      .populate('criadoPor', 'nomeCompleto email')
+      .populate('atendente', 'nomeCompleto')
       .sort({ createdAt: -1 });
-
     res.json(atendimentos);
   } catch (error) {
-    console.error("Erro ao listar:", error);
-    res.status(500).json({ message: "Erro ao listar atendimentos", error });
+    res.status(500).json({ message: "Erro ao carregar chamados" });
   }
 };
 
-// Buscar atendimento específico
 export const buscarAtendimento = async (req, res) => {
   try {
-    const atendimento = await Atendimento.findById(req.params.id).populate('criadoPor', 'nomeCompleto');
-    
-    if (!atendimento) return res.status(404).json({ message: "Atendimento não encontrado" });
-
-    // Se não for supervisor, verifica se ele tem acesso àquela área específica
-    if (req.usuario.perfilAcesso !== 'supervisor') {
+    const atendimento = await Atendimento.findById(req.params.id)
+      .populate('criadoPor', 'nomeCompleto')
+      .populate('atendente', 'nomeCompleto');
+    if (!atendimento) return res.status(404).json({ message: "Não encontrado" });
+    if (req.usuario.perfilAcesso !== 'supervisor' && req.usuario.perfilAcesso !== 'atendente') {
         const areaVinculada = await Area.findOne({ usuarioId: req.usuario.id });
         if (!areaVinculada || !areaVinculada.areas.includes(atendimento.categoriaAssunto)) {
-             return res.status(403).json({ message: "Você não tem acesso a este chamado." });
+             return res.status(403).json({ message: "Sem acesso." });
         }
     }
-
     res.json(atendimento);
   } catch (error) {
-    res.status(500).json({ message: "Erro ao buscar atendimento", error });
+    res.status(500).json({ message: "Erro ao buscar", error });
   }
 };
 
-// Atualizar atendimento
 export const atualizarAtendimento = async (req, res) => {
   try {
-    // Trava de perfil
-    if (req.usuario.perfilAcesso !== 'supervisor' && req.usuario.perfilAcesso !== 'atendente') {
-        return res.status(403).json({ message: "Acesso negado para edição." });
-    }
+    const { id } = req.params;
+    const d = req.body; // Dados vindos do Angular
 
-    const atendimentoAtualizado = await Atendimento.findByIdAndUpdate(
+    // MAPEAMENTO MANUAL: Resolve o problema de não salvar
+    const dadosFormatados = {
+      tipoCliente: d.cliente || d.tipoCliente,
+      categoriaAssunto: d.area || d.categoriaAssunto,
+      descricaoDetalhada: d.descricao || d.descricaoDetalhada,
+      nivelPrioridade: d.prioridade || d.nivelPrioridade,
+      avanco: d.status || d.avanco,
+      atendente: d.atendente, // Salva o Nome que o Supervisor escolher
+      origem: d.origem
+    };
+
+    const atualizado = await Atendimento.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      dadosFormatados, 
       { new: true }
-    );
-    if (!atendimentoAtualizado)
-      return res.status(404).json({ message: "Atendimento não encontrado" });
+    ).populate('atendente', 'nomeCompleto');
     
-    res.json(atendimentoAtualizado);
+    if (!atualizado) return res.status(404).json({ message: "Chamado não encontrado" });
+    res.json(atualizado);
   } catch (error) {
-    res.status(500).json({ message: "Erro ao atualizar atendimento", error });
+    console.error("ERRO AO SALVAR:", error);
+    res.status(500).json({ message: "Erro interno ao salvar" });
   }
 };
 
-// Deletar atendimento
 export const deletarAtendimento = async (req, res) => {
   try {
-    if (req.usuario.perfilAcesso !== 'supervisor') {
-        return res.status(403).json({ message: "Apenas supervisores podem deletar." });
-    }
-
-    const atendimento = await Atendimento.findByIdAndDelete(req.params.id);
-    if (!atendimento)
-      return res.status(404).json({ message: "Atendimento não encontrado" });
-    res.json({ message: "Atendimento deletado com sucesso" });
+    if (req.usuario.perfilAcesso !== 'supervisor') return res.status(403).json({ message: "Negado." });
+    await Atendimento.findByIdAndDelete(req.params.id);
+    res.json({ message: "Deletado" });
   } catch (error) {
-    res.status(500).json({ message: "Erro ao deletar atendimento", error });
+    res.status(500).json({ message: "Erro ao deletar" });
   }
 };
