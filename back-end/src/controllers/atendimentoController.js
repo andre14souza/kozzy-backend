@@ -92,22 +92,24 @@ export const buscarAtendimento = async (req, res) => {
 // Atualizar atendimento
 export const atualizarAtendimento = async (req, res) => {
   try {
-    // Trava de perfil
-    if (req.usuario.perfilAcesso !== 'supervisor' && req.usuario.perfilAcesso !== 'atendente') {
-        return res.status(403).json({ message: "Acesso negado para edição." });
+    const atendimento = await Atendimento.findById(req.params.id);
+    if (!atendimento) return res.status(404).json({ message: "Chamado não encontrado" });
+
+    const ehSupervisor = req.usuario.perfilAcesso === 'supervisor';
+    const ehDonoDoChamado = atendimento.atribuidoA?.toString() === req.usuario.id;
+
+    // Lógica: Supervisor faz tudo. Atendente só muda o próprio chamado.
+    if (!ehSupervisor && !ehDonoDoChamado) {
+        return res.status(403).json({ message: "Você só pode alterar chamados atribuídos a você." });
     }
 
-    const atendimentoAtualizado = await Atendimento.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
-    if (!atendimentoAtualizado)
-      return res.status(404).json({ message: "Atendimento não encontrado" });
-    
-    res.json(atendimentoAtualizado);
+    // Atualiza com os dados do req.body
+    Object.assign(atendimento, req.body);
+    await atendimento.save();
+
+    res.json(atendimento);
   } catch (error) {
-    res.status(500).json({ message: "Erro ao atualizar atendimento", error });
+    res.status(500).json({ message: "Erro ao atualizar", error });
   }
 };
 
