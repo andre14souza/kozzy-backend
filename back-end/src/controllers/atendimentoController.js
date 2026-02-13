@@ -7,13 +7,19 @@ export const criarAtendimento = async (req, res) => {
         return res.status(403).json({ message: "Acesso negado." });
     }
     const dadosParaSalvar = { ...req.body };
+
+    // --- ATRIBUIÇÃO AUTOMÁTICA ---
+    if (!dadosParaSalvar.atendente) {
+        dadosParaSalvar.atendente = req.usuario.id;
+    }
+
     if (!dadosParaSalvar.numeroProtocolo) {
         dadosParaSalvar.numeroProtocolo = `AUTO-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     }
+
     const novoAtendimento = new Atendimento({ ...dadosParaSalvar, criadoPor: req.usuario.id });
     await novoAtendimento.save();
 
-    // CORREÇÃO: Busca o nome do atendente antes de enviar para o Angular
     const populado = await Atendimento.findById(novoAtendimento._id)
       .populate('criadoPor', 'nomeCompleto')
       .populate('atendente', 'nomeCompleto');
@@ -21,6 +27,34 @@ export const criarAtendimento = async (req, res) => {
     res.status(201).json(populado);
   } catch (error) {
     res.status(500).json({ message: "Erro ao criar", error });
+  }
+};
+
+export const atualizarAtendimento = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const d = req.body; 
+
+    const dadosFormatados = {
+      tipoCliente: d.cliente || d.tipoCliente,
+      categoriaAssunto: d.area || d.categoriaAssunto,
+      descricaoDetalhada: d.descricao || d.descricaoDetalhada,
+      nivelPrioridade: d.prioridade || d.nivelPrioridade,
+      avanco: d.status || d.avanco,
+      atendente: d.atendente,
+      origem: d.origem
+    };
+
+    const atualizado = await Atendimento.findByIdAndUpdate(
+      id,
+      { $set: dadosFormatados }, 
+      { new: true }
+    ).populate('atendente', 'nomeCompleto');
+    
+    if (!atualizado) return res.status(404).json({ message: "Não encontrado" });
+    res.json(atualizado);
+  } catch (error) {
+    res.status(500).json({ message: "Erro ao salvar", error });
   }
 };
 
@@ -49,45 +83,9 @@ export const buscarAtendimento = async (req, res) => {
       .populate('criadoPor', 'nomeCompleto')
       .populate('atendente', 'nomeCompleto');
     if (!atendimento) return res.status(404).json({ message: "Não encontrado" });
-    if (req.usuario.perfilAcesso !== 'supervisor' && req.usuario.perfilAcesso !== 'atendente') {
-        const areaVinculada = await Area.findOne({ usuarioId: req.usuario.id });
-        if (!areaVinculada || !areaVinculada.areas.includes(atendimento.categoriaAssunto)) {
-             return res.status(403).json({ message: "Sem acesso." });
-        }
-    }
     res.json(atendimento);
   } catch (error) {
     res.status(500).json({ message: "Erro ao buscar", error });
-  }
-};
-
-export const atualizarAtendimento = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const d = req.body; // Dados vindos do Angular
-
-    // MAPEAMENTO MANUAL: Resolve o problema de não salvar
-    const dadosFormatados = {
-      tipoCliente: d.cliente || d.tipoCliente,
-      categoriaAssunto: d.area || d.categoriaAssunto,
-      descricaoDetalhada: d.descricao || d.descricaoDetalhada,
-      nivelPrioridade: d.prioridade || d.nivelPrioridade,
-      avanco: d.status || d.avanco,
-      atendente: d.atendente, // Salva o Nome que o Supervisor escolher
-      origem: d.origem
-    };
-
-    const atualizado = await Atendimento.findByIdAndUpdate(
-      req.params.id,
-      req.body, 
-      { new: true }
-    ).populate('atendente', 'nomeCompleto');
-    
-    if (!atualizado) return res.status(404).json({ message: "Chamado não encontrado" });
-    res.json(atualizado);
-  } catch (error) {
-    console.error("ERRO AO SALVAR:", error);
-    res.status(500).json({ message: "Erro interno ao salvar" });
   }
 };
 
