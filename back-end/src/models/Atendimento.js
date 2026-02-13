@@ -1,11 +1,7 @@
 import mongoose from "mongoose";
 
 const AtendimentoSchema = new mongoose.Schema({
-  numeroProtocolo: {
-    type: String,
-    required: true,
-    unique: true
-  },
+  numeroProtocolo: { type: String, required: true, unique: true },
   tipoCliente: {
     type: String,
     enum: ["entregador","vendedor", "cliente","interno","supervisor","gerente"],
@@ -13,33 +9,13 @@ const AtendimentoSchema = new mongoose.Schema({
   },
   categoriaAssunto: {
     type: String,
-    enum: [
-      "Logistica",
-      "Contas a Pagar",
-      "Contas a Receber",
-      "Compras",
-      "T.I",
-      "Comercial"
-    ],
+    enum: ["Logistica", "Contas a Pagar", "Contas a Receber", "Compras", "T.I", "Comercial"],
     required: true
   },
-  dataAtendimento: {
-    type: Date,
-    default: Date.now
-  },
-  origem: { 
-    type: String, 
-    enum: ['whatsapp', 'email'], // Opcional: trava para ser só esses dois
-    default: 'email'             // Se não vier nada, salva como email
-  },
-  hora: {
-    type: String,
-    required: true
-  },
-  descricaoDetalhada: {
-    type: String,
-    required: true
-  },
+  dataAtendimento: { type: Date, default: Date.now },
+  origem: { type: String, enum: ['whatsapp', 'email'], default: 'email' },
+  hora: { type: String, required: true },
+  descricaoDetalhada: { type: String, required: true },
   nivelPrioridade: {
     type: String,
     enum: ["Baixa Prioridade", "Média Prioridade", "Alta Prioridade", "Urgente"],
@@ -50,22 +26,11 @@ const AtendimentoSchema = new mongoose.Schema({
     enum: ["aberto", "em andamento", "concluido"],
     default: "aberto"
   },
-  criadoPor: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Usuario",
-    required: true
-  },
-  atribuidoA: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Usuario",
-    default: null
-  },
-  dataConclusao: {
-    type: Date 
-  },
-  horaConclusao: {
-    type: String 
-  }
-});
+  criadoPor: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", required: true },
+  // CAMPO CORRIGIDO: Agora o banco aceita o nome ou ID do atendente
+  atendente: { type: String, default: "" }, 
+  dataConclusao: { type: Date },
+  horaConclusao: { type: String }
+}, { timestamps: true }); // ADICIONADO: Isso cria o campo createdAt automaticamente
 
 export default mongoose.model("Atendimento", AtendimentoSchema);

@@ -37,7 +37,7 @@ export const listarAtendimentos = async (req, res) => {
     const { id, perfilAcesso } = req.usuario;
     let filtro = {};
 
-    // Se for Cliente, filtra por área. Supervisor e Atendente veem tudo.
+    // Atendentes e Supervisores veem tudo. Apenas outros perfis filtram por área.
     if (perfilAcesso !== 'supervisor' && perfilAcesso !== 'atendente') {
         const areaVinculada = await Area.findOne({ usuarioId: id });
         if (!areaVinculada || !areaVinculada.areas || areaVinculada.areas.length === 0) {
@@ -48,15 +48,14 @@ export const listarAtendimentos = async (req, res) => {
 
     const atendimentos = await Atendimento.find(filtro)
       .populate('criadoPor', 'nomeCompleto email')
-      .populate('atendente', 'nomeCompleto email') // Traz os dados do atendente escalado
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 }); // Agora funciona porque ativamos timestamps no Model
 
     res.json(atendimentos);
   } catch (error) {
-    res.status(500).json({ message: "Erro ao listar atendimentos", error });
+    console.error("Erro ao listar:", error);
+    res.status(500).json({ message: "Erro ao carregar chamados" });
   }
 };
-
 // Buscar atendimento específico
 export const buscarAtendimento = async (req, res) => {
   try {
@@ -83,39 +82,29 @@ export const buscarAtendimento = async (req, res) => {
 // Atualizar atendimento (CORREÇÃO DO PROBLEMA 1 e 2)
 export const atualizarAtendimento = async (req, res) => {
   try {
-    const atendimentoOriginal = await Atendimento.findById(req.params.id);
-    if (!atendimentoOriginal) return res.status(404).json({ message: "Não encontrado" });
+    const chamado = await Atendimento.findById(req.params.id);
+    if (!chamado) return res.status(404).json({ message: "Não encontrado" });
 
     const isSupervisor = req.usuario.perfilAcesso === 'supervisor';
-    const isResponsavel = 
-        atendimentoOriginal.criadoPor.toString() === req.usuario.id || 
-        (atendimentoOriginal.atendente && atendimentoOriginal.atendente.toString() === req.usuario.id);
+    const isDono = chamado.criadoPor.toString() === req.usuario.id;
 
-    // 1. Bloqueio de Segurança
-    if (!isSupervisor && !isResponsavel) {
-        return res.status(403).json({ message: "Sem permissão para alterar este chamado." });
-    }
-
-    // 2. Se for Atendente (e dono), ele SÓ altera o status (avanco)
-    if (!isSupervisor && isResponsavel) {
-        const apenasStatus = { avanco: req.body.avanco };
-        const atualizado = await Atendimento.findByIdAndUpdate(req.params.id, apenasStatus, { new: true })
-            .populate('atendente', 'nomeCompleto');
+    // Se for Atendente e dono do chamado, ele pode alterar o status (avanco)
+    if (!isSupervisor && isDono) {
+        const updateStatus = { avanco: req.body.status || req.body.avanco };
+        const atualizado = await Atendimento.findByIdAndUpdate(req.params.id, updateStatus, { new: true });
         return res.json(atualizado);
     }
 
-    // 3. Se for Supervisor, permite alterar tudo (inclusive o novo atendente)
-    // O segredo é o .populate no final para o Front-end receber o nome atualizado
-    const atendimentoAtualizado = await Atendimento.findByIdAndUpdate(
-      req.params.id,
-      req.body, // Aqui o Front envia { atendente: "ID_DO_NOVO_ATENDENTE" }
-      { new: true }
-    ).populate('atendente', 'nomeCompleto');
-    
-    res.json(atendimentoAtualizado);
+    // Se não for supervisor nem dono, bloqueia
+    if (!isSupervisor) {
+        return res.status(403).json({ message: "Sem permissão para editar" });
+    }
+
+    // Supervisor pode alterar TUDO (incluindo o atendente)
+    const atualizado = await Atendimento.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(atualizado);
   } catch (error) {
-    console.error("Erro ao atualizar:", error);
-    res.status(500).json({ message: "Erro ao atualizar atendimento", error });
+    res.status(500).json({ message: "Erro ao salvar alterações" });
   }
 };
 
