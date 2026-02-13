@@ -59,26 +59,31 @@ export const buscarAtendimento = async (req, res) => {
 
 export const atualizarAtendimento = async (req, res) => {
   try {
-    const chamado = await Atendimento.findById(req.params.id);
-    if (!chamado) return res.status(404).json({ message: "Não encontrado" });
+    const { id } = req.params;
+    const d = req.body; // Dados vindos do Angular
 
-    const isSupervisor = req.usuario.perfilAcesso === 'supervisor';
-    const isResponsavel = chamado.criadoPor.toString() === req.usuario.id || 
-                         (chamado.atendente && chamado.atendente.toString() === req.usuario.id);
+    // MAPEAMENTO MANUAL: Resolve o problema de não salvar
+    const dadosFormatados = {
+      tipoCliente: d.cliente || d.tipoCliente,
+      categoriaAssunto: d.area || d.categoriaAssunto,
+      descricaoDetalhada: d.descricao || d.descricaoDetalhada,
+      nivelPrioridade: d.prioridade || d.nivelPrioridade,
+      avanco: d.status || d.avanco,
+      atendente: d.atendente, // Salva o Nome que o Supervisor escolher
+      origem: d.origem
+    };
 
-    if (!isSupervisor && !isResponsavel) return res.status(403).json({ message: "Sem permissão." });
+    const atualizado = await Atendimento.findByIdAndUpdate(
+      id,
+      { $set: dadosFormatados }, // O $set força a gravação
+      { new: true }
+    );
 
-    if (!isSupervisor && isResponsavel) {
-        const apenasStatus = { avanco: req.body.status || req.body.avanco };
-        const atualizado = await Atendimento.findByIdAndUpdate(req.params.id, apenasStatus, { new: true });
-        return res.json(atualizado);
-    }
-
-    const atualizado = await Atendimento.findByIdAndUpdate(req.params.id, req.body, { new: true })
-      .populate('atendente', 'nomeCompleto');
+    if (!atualizado) return res.status(404).json({ message: "Chamado não encontrado" });
     res.json(atualizado);
   } catch (error) {
-    res.status(500).json({ message: "Erro ao atualizar" });
+    console.error("ERRO AO SALVAR:", error);
+    res.status(500).json({ message: "Erro interno ao salvar" });
   }
 };
 

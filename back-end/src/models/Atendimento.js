@@ -29,8 +29,7 @@ const AtendimentoSchema = new mongoose.Schema({
   criadoPor: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", required: true },
   
   // CORREÇÃO: Referência para a coleção de Usuários
-  atendente: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", default: null }, 
-  
+atendente: { type: String, default: "" },  
   dataConclusao: { type: Date },
   horaConclusao: { type: String }
 }, { timestamps: true });
