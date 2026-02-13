@@ -27,10 +27,15 @@ const AtendimentoSchema = new mongoose.Schema({
     default: "aberto"
   },
   criadoPor: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", required: true },
-  // CAMPO CORRIGIDO: Agora o banco aceita o nome ou ID do atendente
-  atendente: { type: String, default: "" }, 
+  
+  // CORREÇÃO: Agora é uma referência oficial ao modelo de Usuário
+atendente: { 
+  type: mongoose.Schema.Types.ObjectId, 
+  ref: "Usuario", 
+  default: null 
+},  
   dataConclusao: { type: Date },
   horaConclusao: { type: String }
-}, { timestamps: true }); // ADICIONADO: Isso cria o campo createdAt automaticamente
+}, { timestamps: true });
 
 export default mongoose.model("Atendimento", AtendimentoSchema);

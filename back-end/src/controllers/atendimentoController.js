@@ -86,22 +86,26 @@ export const atualizarAtendimento = async (req, res) => {
     if (!chamado) return res.status(404).json({ message: "Não encontrado" });
 
     const isSupervisor = req.usuario.perfilAcesso === 'supervisor';
-    const isDono = chamado.criadoPor.toString() === req.usuario.id;
+    
+    // Se for atendente, ele só pode mudar o próprio status (avanco)
+    if (!isSupervisor) {
+        const isDono = chamado.criadoPor.toString() === req.usuario.id || 
+                       (chamado.atendente && chamado.atendente.toString() === req.usuario.id);
+                       
+        if (!isDono) return res.status(403).json({ message: "Acesso negado." });
 
-    // Se for Atendente e dono do chamado, ele pode alterar o status (avanco)
-    if (!isSupervisor && isDono) {
-        const updateStatus = { avanco: req.body.status || req.body.avanco };
-        const atualizado = await Atendimento.findByIdAndUpdate(req.params.id, updateStatus, { new: true });
+        const apenasStatus = { avanco: req.body.status || req.body.avanco };
+        const atualizado = await Atendimento.findByIdAndUpdate(req.params.id, apenasStatus, { new: true });
         return res.json(atualizado);
     }
 
-    // Se não for supervisor nem dono, bloqueia
-    if (!isSupervisor) {
-        return res.status(403).json({ message: "Sem permissão para editar" });
-    }
+    // Se for Supervisor, permite atualizar TUDO, incluindo o 'atendente'
+    const atualizado = await Atendimento.findByIdAndUpdate(
+      req.params.id,
+      req.body, // Aqui o req.body deve conter o campo 'atendente' com o ID novo
+      { new: true }
+    ).populate('atendente', 'nomeCompleto'); // <--- IMPORTANTE para o front ver o nome
 
-    // Supervisor pode alterar TUDO (incluindo o atendente)
-    const atualizado = await Atendimento.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(atualizado);
   } catch (error) {
     res.status(500).json({ message: "Erro ao salvar alterações" });
