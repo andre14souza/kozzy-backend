@@ -8,7 +8,9 @@ export const criarAtendimento = async (req, res) => {
     }
     
     const dadosParaSalvar = { ...req.body };
-    
+    if (req.usuario.perfilAcesso !== 'supervisor') {
+        dadosParaSalvar.atendente = null;
+    }
     if (!dadosParaSalvar.numeroProtocolo) {
         const timestamp = Date.now();
         const aleatorio = Math.floor(Math.random() * 1000);
