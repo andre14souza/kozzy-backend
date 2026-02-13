@@ -93,23 +93,39 @@ export const buscarAtendimento = async (req, res) => {
 export const atualizarAtendimento = async (req, res) => {
   try {
     const atendimento = await Atendimento.findById(req.params.id);
-    if (!atendimento) return res.status(404).json({ message: "Chamado não encontrado" });
-
-    const ehSupervisor = req.usuario.perfilAcesso === 'supervisor';
-    const ehDonoDoChamado = atendimento.atribuidoA?.toString() === req.usuario.id;
-
-    // Lógica: Supervisor faz tudo. Atendente só muda o próprio chamado.
-    if (!ehSupervisor && !ehDonoDoChamado) {
-        return res.status(403).json({ message: "Você só pode alterar chamados atribuídos a você." });
+    
+    if (!atendimento) {
+        return res.status(404).json({ message: "Atendimento não encontrado" });
     }
 
-    // Atualiza com os dados do req.body
-    Object.assign(atendimento, req.body);
-    await atendimento.save();
+    const isSupervisor = req.usuario.perfilAcesso === 'supervisor';
+    const isResponsavel = 
+        atendimento.criadoPor.toString() === req.usuario.id || 
+        (atendimento.atribuidoA && atendimento.atribuidoA.toString() === req.usuario.id);
 
-    res.json(atendimento);
+    // Bloqueia se não for supervisor e nem o responsável pelo chamado
+    if (!isSupervisor && !isResponsavel) {
+        return res.status(403).json({ message: "Você não tem permissão para alterar este chamado." });
+    }
+
+    // Se for atendente (e responsável), ele SÓ pode mudar o status (avanco)
+    if (!isSupervisor && isResponsavel) {
+        const apenasStatus = { avanco: req.body.avanco };
+        const atualizado = await Atendimento.findByIdAndUpdate(req.params.id, apenasStatus, { new: true });
+        return res.json(atualizado);
+    }
+
+    // Se for supervisor, permite atualizar tudo (incluindo o novo atendente)
+    const atendimentoAtualizado = await Atendimento.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+    
+    res.json(atendimentoAtualizado);
   } catch (error) {
-    res.status(500).json({ message: "Erro ao atualizar", error });
+    console.error("Erro ao atualizar:", error);
+    res.status(500).json({ message: "Erro ao atualizar atendimento", error });
   }
 };
 

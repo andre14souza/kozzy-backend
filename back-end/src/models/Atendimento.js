@@ -55,6 +55,11 @@ const AtendimentoSchema = new mongoose.Schema({
     ref: "Usuario",
     required: true
   },
+  atribuidoA: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Usuario",
+    default: null
+  },
   dataConclusao: {
     type: Date 
   },
