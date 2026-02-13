@@ -75,7 +75,7 @@ export const atualizarAtendimento = async (req, res) => {
 
     const atualizado = await Atendimento.findByIdAndUpdate(
       req.params.id,
-      dadosFormatados, 
+      req.body, 
       { new: true }
     ).populate('atendente', 'nomeCompleto');
     
