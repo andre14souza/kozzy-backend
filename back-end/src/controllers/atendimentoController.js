@@ -8,11 +8,9 @@ export const criarAtendimento = async (req, res) => {
         return res.status(403).json({ message: "Acesso negado." });
     }
 
-    // Criamos uma cópia dos dados para não alterar o req.body original
     const dadosParaSalvar = { ...req.body };
 
-    // LÓGICA DE PROTOCOLO AUTOMÁTICO:
-    // Se o numeroProtocolo estiver vazio ou não existir, geramos um
+    // LÓGICA DE PROTOCOLO AUTOMÁTICO
     if (!dadosParaSalvar.numeroProtocolo) {
         const timestamp = Date.now();
         const aleatorio = Math.floor(Math.random() * 1000);
@@ -33,37 +31,28 @@ export const criarAtendimento = async (req, res) => {
   }
 };
 
-// Listar atendimentos do usuário logado conforme áreas de acesso
+// Listar atendimentos
 export const listarAtendimentos = async (req, res) => {
   try {
-    const { id, perfilAcesso } = req.usuario; // Dados vindos do Token JWT
-
+    const { id, perfilAcesso } = req.usuario;
     let filtro = {};
 
-    // --- LÓGICA DE SEGURANÇA VISUAL ---
-    
-    // CASO 1: Se NÃO for Supervisor, aplicamos o filtro de área
+    // Se for Cliente, filtra por área. Supervisor e Atendente veem tudo.
     if (perfilAcesso !== 'supervisor' && perfilAcesso !== 'atendente') {
         const areaVinculada = await Area.findOne({ usuarioId: id });
-
-        // Se o funcionário não tiver nenhuma área vinculada, ele não vê nada
         if (!areaVinculada || !areaVinculada.areas || areaVinculada.areas.length === 0) {
             return res.json([]); 
         }
-
-        // Aplica o filtro: Só traz chamados onde a categoriaAssunto está nas áreas dele
         filtro = { categoriaAssunto: { $in: areaVinculada.areas } };
     }
-    
-    // CASO 2: Se for Supervisor, o 'filtro' continua vazio {}, ou seja, busca tudo.
 
     const atendimentos = await Atendimento.find(filtro)
-      .populate('criadoPor', 'nomeCompleto email') // Traz o nome do usuário
+      .populate('criadoPor', 'nomeCompleto email')
+      .populate('atendente', 'nomeCompleto email') // Traz os dados do atendente escalado
       .sort({ createdAt: -1 });
 
     res.json(atendimentos);
   } catch (error) {
-    console.error("Erro ao listar:", error);
     res.status(500).json({ message: "Erro ao listar atendimentos", error });
   }
 };
@@ -71,12 +60,14 @@ export const listarAtendimentos = async (req, res) => {
 // Buscar atendimento específico
 export const buscarAtendimento = async (req, res) => {
   try {
-    const atendimento = await Atendimento.findById(req.params.id).populate('criadoPor', 'nomeCompleto');
+    const atendimento = await Atendimento.findById(req.params.id)
+      .populate('criadoPor', 'nomeCompleto')
+      .populate('atendente', 'nomeCompleto');
     
     if (!atendimento) return res.status(404).json({ message: "Atendimento não encontrado" });
 
-    // Se não for supervisor, verifica se ele tem acesso àquela área específica
-    if (req.usuario.perfilAcesso !== 'supervisor') {
+    // Permissão: Supervisor e Atendente acessam. Outros verificam área.
+    if (req.usuario.perfilAcesso !== 'supervisor' && req.usuario.perfilAcesso !== 'atendente') {
         const areaVinculada = await Area.findOne({ usuarioId: req.usuario.id });
         if (!areaVinculada || !areaVinculada.areas.includes(atendimento.categoriaAssunto)) {
              return res.status(403).json({ message: "Você não tem acesso a este chamado." });
@@ -89,38 +80,37 @@ export const buscarAtendimento = async (req, res) => {
   }
 };
 
-// Atualizar atendimento
+// Atualizar atendimento (CORREÇÃO DO PROBLEMA 1 e 2)
 export const atualizarAtendimento = async (req, res) => {
   try {
-    const atendimento = await Atendimento.findById(req.params.id);
-    
-    if (!atendimento) {
-        return res.status(404).json({ message: "Atendimento não encontrado" });
-    }
+    const atendimentoOriginal = await Atendimento.findById(req.params.id);
+    if (!atendimentoOriginal) return res.status(404).json({ message: "Não encontrado" });
 
     const isSupervisor = req.usuario.perfilAcesso === 'supervisor';
     const isResponsavel = 
-        atendimento.criadoPor.toString() === req.usuario.id || 
-        (atendimento.atribuidoA && atendimento.atribuidoA.toString() === req.usuario.id);
+        atendimentoOriginal.criadoPor.toString() === req.usuario.id || 
+        (atendimentoOriginal.atendente && atendimentoOriginal.atendente.toString() === req.usuario.id);
 
-    // Bloqueia se não for supervisor e nem o responsável pelo chamado
+    // 1. Bloqueio de Segurança
     if (!isSupervisor && !isResponsavel) {
-        return res.status(403).json({ message: "Você não tem permissão para alterar este chamado." });
+        return res.status(403).json({ message: "Sem permissão para alterar este chamado." });
     }
 
-    // Se for atendente (e responsável), ele SÓ pode mudar o status (avanco)
+    // 2. Se for Atendente (e dono), ele SÓ altera o status (avanco)
     if (!isSupervisor && isResponsavel) {
         const apenasStatus = { avanco: req.body.avanco };
-        const atualizado = await Atendimento.findByIdAndUpdate(req.params.id, apenasStatus, { new: true });
+        const atualizado = await Atendimento.findByIdAndUpdate(req.params.id, apenasStatus, { new: true })
+            .populate('atendente', 'nomeCompleto');
         return res.json(atualizado);
     }
 
-    // Se for supervisor, permite atualizar tudo (incluindo o novo atendente)
+    // 3. Se for Supervisor, permite alterar tudo (inclusive o novo atendente)
+    // O segredo é o .populate no final para o Front-end receber o nome atualizado
     const atendimentoAtualizado = await Atendimento.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      req.body, // Aqui o Front envia { atendente: "ID_DO_NOVO_ATENDENTE" }
       { new: true }
-    );
+    ).populate('atendente', 'nomeCompleto');
     
     res.json(atendimentoAtualizado);
   } catch (error) {
@@ -135,11 +125,9 @@ export const deletarAtendimento = async (req, res) => {
     if (req.usuario.perfilAcesso !== 'supervisor') {
         return res.status(403).json({ message: "Apenas supervisores podem deletar." });
     }
-
     const atendimento = await Atendimento.findByIdAndDelete(req.params.id);
-    if (!atendimento)
-      return res.status(404).json({ message: "Atendimento não encontrado" });
-    res.json({ message: "Atendimento deletado com sucesso" });
+    if (!atendimento) return res.status(404).json({ message: "Não encontrado" });
+    res.json({ message: "Deletado com sucesso" });
   } catch (error) {
     res.status(500).json({ message: "Erro ao deletar atendimento", error });
   }
