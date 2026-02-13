@@ -4,7 +4,7 @@ const AtendimentoSchema = new mongoose.Schema({
   numeroProtocolo: { type: String, required: true, unique: true },
   tipoCliente: {
     type: String,
-    enum: ["entregador","vendedor", "cliente","interno","supervisor","gerente"],
+    enum: ["entregador", "vendedor", "cliente", "interno", "supervisor", "gerente"],
     required: true
   },
   categoriaAssunto: {
@@ -28,12 +28,9 @@ const AtendimentoSchema = new mongoose.Schema({
   },
   criadoPor: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", required: true },
   
-  // CORREÇÃO: Agora é uma referência oficial ao modelo de Usuário
-atendente: { 
-  type: mongoose.Schema.Types.ObjectId, 
-  ref: "Usuario", 
-  default: null 
-},  
+  // CORREÇÃO: Referência para a coleção de Usuários
+  atendente: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", default: null }, 
+  
   dataConclusao: { type: Date },
   horaConclusao: { type: String }
 }, { timestamps: true });
