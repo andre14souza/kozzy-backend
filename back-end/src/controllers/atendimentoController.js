@@ -7,21 +7,16 @@ export const criarAtendimento = async (req, res) => {
         return res.status(403).json({ message: "Acesso negado." });
     }
     
-    const d = req.body;
+    const dadosParaSalvar = { ...req.body };
     
-    // ✅ CORREÇÃO: Tradução obrigatória do Angular para o Mongoose na criação
-    const dadosParaSalvar = { 
-      numeroProtocolo: d.numeroProtocolo || `AUTO-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      tipoCliente: d.cliente || d.tipoCliente,
-      categoriaAssunto: d.area || d.categoriaAssunto,         // Departamento
-      assuntoEspecifico: d.assunto || d.assuntoEspecifico,    // Assunto Real
-      origem: d.origem,
-      hora: d.hora,
-      descricaoDetalhada: d.descricao || d.descricaoDetalhada,
-      nivelPrioridade: d.prioridade || d.nivelPrioridade,
-      avanco: d.status || d.avanco || 'aberto',
-      atendente: d.atendente || req.usuario.id // Atribuição automática
-    };
+    if (!dadosParaSalvar.numeroProtocolo) {
+        dadosParaSalvar.numeroProtocolo = `AUTO-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    }
+
+    // Garante que se o atendente vier vazio, é o próprio criador
+    if (!dadosParaSalvar.atendente) {
+        dadosParaSalvar.atendente = req.usuario.id;
+    }
 
     const novoAtendimento = new Atendimento({ ...dadosParaSalvar, criadoPor: req.usuario.id });
     await novoAtendimento.save();
@@ -32,22 +27,20 @@ export const criarAtendimento = async (req, res) => {
 
     res.status(201).json(populado);
   } catch (error) {
-    res.status(500).json({ message: "Erro ao criar", error });
+    res.status(500).json({ message: "Erro ao criar atendimento", error });
   }
 };
 
 export const atualizarAtendimento = async (req, res) => {
   try {
     const { id } = req.params;
-    const d = req.body;
+    const d = req.body; 
 
+    // ✅ MAPEAMENTO SEGURO: Liga os nomes do Front aos nomes do Banco
     const dadosFormatados = {
       tipoCliente: d.cliente || d.tipoCliente,
       categoriaAssunto: d.area || d.categoriaAssunto,
-      
-      // ✅ CORREÇÃO: O controlador agora reconhece o assunto e prepara-o para salvar
       assuntoEspecifico: d.categoria || d.assuntoEspecifico || d.assunto,
-      
       descricaoDetalhada: d.descricao || d.descricaoDetalhada,
       nivelPrioridade: d.prioridade || d.nivelPrioridade,
       avanco: d.status || d.avanco,
@@ -56,6 +49,7 @@ export const atualizarAtendimento = async (req, res) => {
       origem: d.origem
     };
 
+    // ✅ CORREÇÃO: Utiliza o $set com os dados formatados
     const atualizado = await Atendimento.findByIdAndUpdate(
       id,
       { $set: dadosFormatados }, 
@@ -65,7 +59,8 @@ export const atualizarAtendimento = async (req, res) => {
     if (!atualizado) return res.status(404).json({ message: "Chamado não encontrado" });
     res.json(atualizado);
   } catch (error) {
-    res.status(500).json({ message: "Erro interno ao salvar", error });
+    console.error("ERRO AO SALVAR:", error);
+    res.status(500).json({ message: "Erro interno ao salvar" });
   }
 };
 
@@ -102,10 +97,10 @@ export const buscarAtendimento = async (req, res) => {
 
 export const deletarAtendimento = async (req, res) => {
   try {
-    if (req.usuario.perfilAcesso !== 'supervisor') return res.status(403).json({ message: "Negado." });
+    if (req.usuario.perfilAcesso !== 'supervisor') return res.status(403).json({ message: "Acesso negado." });
     await Atendimento.findByIdAndDelete(req.params.id);
-    res.json({ message: "Deletado" });
+    res.json({ message: "Chamado deletado com sucesso" });
   } catch (error) {
-    res.status(500).json({ message: "Erro ao deletar" });
+    res.status(500).json({ message: "Erro ao deletar chamado" });
   }
 };

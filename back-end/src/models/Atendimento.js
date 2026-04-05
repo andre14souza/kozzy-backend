@@ -12,7 +12,7 @@ const AtendimentoSchema = new mongoose.Schema({
     enum: ["Logistica", "Contas a Pagar", "Contas a Receber", "Compras", "T.I", "Comercial"],
     required: true
   },
-  // ✅ CORREÇÃO: Este campo não existia, por isso o assunto não salvava!
+  // ✅ CORREÇÃO: Coluna do Assunto adicionada! Sem isto o banco não guarda nada.
   assuntoEspecifico: { 
     type: String, 
     required: true 
@@ -31,7 +31,8 @@ const AtendimentoSchema = new mongoose.Schema({
     enum: ["aberto", "em andamento", "concluido", "encerrado"],
     default: "aberto"
   },
-  solucao: { type: String, default: "" },
+  // ✅ CORREÇÃO: Coluna de solução garantida aqui
+  solucao: { type: String, default: "" }, 
   criadoPor: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", required: true },
   atendente: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", default: null },
   dataConclusao: { type: Date },
