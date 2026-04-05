@@ -37,19 +37,22 @@ export const atualizarAtendimento = async (req, res) => {
     const d = req.body; 
 
     // ✅ MAPEAMENTO SEGURO: Liga os nomes do Front aos nomes do Banco
-    const dadosFormatados = {
-      tipoCliente: d.cliente || d.tipoCliente,
-      categoriaAssunto: d.area || d.categoriaAssunto,
-      assuntoEspecifico: d.categoria || d.assuntoEspecifico || d.assunto,
-      descricaoDetalhada: d.descricao || d.descricaoDetalhada,
-      nivelPrioridade: d.prioridade || d.nivelPrioridade,
-      avanco: d.status || d.avanco,
-      atendente: d.atendente || null,
-      solucao: d.solucao || "",
-      origem: d.origem
-    };
+    // Utilizando atribuição dinâmica para permitir atualizações parciais (ex: do Kanban)
+    // Sem sobrescrever campos existentes com vazio/nulo caso não sejam enviados.
+    const dadosFormatados = {};
+    
+    if (d.cliente || d.tipoCliente) dadosFormatados.tipoCliente = d.cliente || d.tipoCliente;
+    if (d.area || d.categoriaAssunto) dadosFormatados.categoriaAssunto = d.area || d.categoriaAssunto;
+    if (d.categoria || d.assuntoEspecifico || d.assunto) dadosFormatados.assuntoEspecifico = d.categoria || d.assuntoEspecifico || d.assunto;
+    if (d.descricao || d.descricaoDetalhada) dadosFormatados.descricaoDetalhada = d.descricao || d.descricaoDetalhada;
+    if (d.prioridade || d.nivelPrioridade) dadosFormatados.nivelPrioridade = d.prioridade || d.nivelPrioridade;
+    if (d.status || d.avanco) dadosFormatados.avanco = d.status || d.avanco;
+    
+    if (d.atendente !== undefined) dadosFormatados.atendente = d.atendente || null;
+    if (d.solucao !== undefined) dadosFormatados.solucao = d.solucao;
+    if (d.origem !== undefined) dadosFormatados.origem = d.origem;
 
-    // ✅ CORREÇÃO: Utiliza o $set com os dados formatados
+    // ✅ CORREÇÃO: Utiliza o $set com os dados formatados limpos
     const atualizado = await Atendimento.findByIdAndUpdate(
       id,
       { $set: dadosFormatados }, 
