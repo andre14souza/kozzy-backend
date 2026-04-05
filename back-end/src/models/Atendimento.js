@@ -12,6 +12,11 @@ const AtendimentoSchema = new mongoose.Schema({
     enum: ["Logistica", "Contas a Pagar", "Contas a Receber", "Compras", "T.I", "Comercial"],
     required: true
   },
+  // ✅ CORREÇÃO: Este campo não existia, por isso o assunto não salvava!
+  assuntoEspecifico: { 
+    type: String, 
+    required: true 
+  },
   dataAtendimento: { type: Date, default: Date.now },
   origem: { type: String, enum: ['whatsapp', 'email'], default: 'email' },
   hora: { type: String, required: true },
@@ -23,17 +28,12 @@ const AtendimentoSchema = new mongoose.Schema({
   },
   avanco: {
     type: String,
-    enum: ["aberto", "em andamento", "concluido"],
+    enum: ["aberto", "em andamento", "concluido", "encerrado"],
     default: "aberto"
   },
+  solucao: { type: String, default: "" },
   criadoPor: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", required: true },
-  
-  // CORREÇÃO: Referência para a coleção de Usuários
-atendente: { 
-  type: mongoose.Schema.Types.ObjectId, 
-  ref: "Usuario", 
-  default: null 
-},
+  atendente: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", default: null },
   dataConclusao: { type: Date },
   horaConclusao: { type: String }
 }, { timestamps: true });
