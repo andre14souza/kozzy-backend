@@ -10,6 +10,8 @@ import atendimentoRoutes from "./routes/atendimentoRoutes.js";
 import areaRoutes from "./routes/areaRoutes.js";
 import { swaggerDocs } from "./swagger.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 const app = express();
@@ -30,7 +32,7 @@ app.use(express.json());
 app.use(cookieParser()); 
 
 // EXPOR A PASTA UPLOADS ESTATICAMENTE
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 app.get('/api/test-cookie', (req, res) => {
     res.json({ cookies: req.cookies, tokenPresent: !!req.cookies.token });
 });
