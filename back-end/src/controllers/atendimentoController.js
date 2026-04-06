@@ -1,6 +1,19 @@
 import Atendimento from "../models/Atendimento.js";
 import Area from "../models/Area.js";
 
+const calcularDataLimite = (prioridade) => {
+  const horas = {
+    'Urgente': 4,
+    'Alta Prioridade': 24,
+    'Média Prioridade': 48,
+    'Baixa Prioridade': 72
+  };
+  const horasAdicionais = horas[prioridade] || 48;
+  const dataLimite = new Date();
+  dataLimite.setHours(dataLimite.getHours() + horasAdicionais);
+  return dataLimite;
+};
+
 export const criarAtendimento = async (req, res) => {
   try {
     if (req.usuario.perfilAcesso !== 'supervisor' && req.usuario.perfilAcesso !== 'atendente') {
@@ -17,6 +30,8 @@ export const criarAtendimento = async (req, res) => {
     if (!dadosParaSalvar.atendente) {
         dadosParaSalvar.atendente = req.usuario.id;
     }
+
+    dadosParaSalvar.dataLimite = calcularDataLimite(dadosParaSalvar.nivelPrioridade || 'Média Prioridade');
 
     const novoAtendimento = new Atendimento({ ...dadosParaSalvar, criadoPor: req.usuario.id });
     await novoAtendimento.save();
@@ -52,6 +67,14 @@ export const atualizarAtendimento = async (req, res) => {
     if (d.atendente !== undefined) dadosFormatados.atendente = d.atendente || null;
     if (d.solucao !== undefined) dadosFormatados.solucao = d.solucao;
     if (d.origem !== undefined) dadosFormatados.origem = d.origem;
+
+    const atendimentoExistente = await Atendimento.findById(id);
+    if (!atendimentoExistente) return res.status(404).json({ message: "Chamado não encontrado" });
+
+    // Recalcula o SLA apenas se a prioridade foi alterada
+    if (dadosFormatados.nivelPrioridade && dadosFormatados.nivelPrioridade !== atendimentoExistente.nivelPrioridade) {
+      dadosFormatados.dataLimite = calcularDataLimite(dadosFormatados.nivelPrioridade);
+    }
 
     // ✅ CORREÇÃO: Utiliza o $set com os dados formatados limpos
     const atualizado = await Atendimento.findByIdAndUpdate(

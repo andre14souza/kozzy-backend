@@ -26,6 +26,7 @@ const AtendimentoSchema = new mongoose.Schema({
     enum: ["Baixa Prioridade", "Média Prioridade", "Alta Prioridade", "Urgente"],
     default: "Média Prioridade"
   },
+  dataLimite: { type: Date },
   avanco: {
     type: String,
     enum: ["aberto", "em andamento", "concluido", "encerrado"],
