@@ -8,6 +8,7 @@ import {
   adicionarComentario
 } from "../controllers/atendimentoController.js";
 import { autenticar } from "../middleware/authMiddleware.js";
+import { upload } from "../middleware/upload.js";
 
 const router = express.Router();
 
@@ -53,7 +54,7 @@ const router = express.Router();
  *       201:
  *         description: Atendimento criado com sucesso
  */
-router.post("/", autenticar, criarAtendimento);
+router.post("/", autenticar, upload.single('anexo'), criarAtendimento);
 
 /**
  * @swagger
@@ -162,10 +163,10 @@ router.delete("/:id", autenticar, deletarAtendimento);
  *       201:
  *         description: Comentário adicionado com sucesso
  *       400:
- *         description: A mensagem é obrigatória
+ *         description: É necessário enviar uma mensagem ou um anexo
  *       404:
  *         description: Chamado não encontrado
  */
-router.post("/:id/comentarios", autenticar, adicionarComentario);
+router.post("/:id/comentarios", autenticar, upload.single('anexo'), adicionarComentario);
 
 export default router;

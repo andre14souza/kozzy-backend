@@ -38,9 +38,19 @@ const AtendimentoSchema = new mongoose.Schema({
   atendente: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", default: null },
   dataConclusao: { type: Date },
   horaConclusao: { type: String },
+  anexo: {
+    nomeOriginal: { type: String },
+    caminho: { type: String },
+    mimetype: { type: String }
+  },
   comentarios: [{
     usuario: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", required: true },
-    mensagem: { type: String, required: true },
+    mensagem: { type: String },
+    anexo: {
+      nomeOriginal: { type: String },
+      caminho: { type: String },
+      mimetype: { type: String }
+    },
     dataCriacao: { type: Date, default: Date.now }
   }]
 }, { timestamps: true });

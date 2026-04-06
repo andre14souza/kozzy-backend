@@ -2,6 +2,8 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import path from "path";
+import { fileURLToPath } from "url";
 import { connectDB } from "./config/db.js";
 import usuarioRoutes from "./routes/usuarioRoutes.js";
 import atendimentoRoutes from "./routes/atendimentoRoutes.js";
@@ -26,6 +28,9 @@ app.use(express.json());
 
 // COOKIE-PARSER ANTES DAS ROTAS (corrigido antes)
 app.use(cookieParser()); 
+
+// EXPOR A PASTA UPLOADS ESTATICAMENTE
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.get('/api/test-cookie', (req, res) => {
     res.json({ cookies: req.cookies, tokenPresent: !!req.cookies.token });
 });

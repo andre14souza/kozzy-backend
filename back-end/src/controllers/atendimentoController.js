@@ -33,6 +33,14 @@ export const criarAtendimento = async (req, res) => {
 
     dadosParaSalvar.dataLimite = calcularDataLimite(dadosParaSalvar.nivelPrioridade || 'Média Prioridade');
 
+    if (req.file) {
+      dadosParaSalvar.anexo = {
+        nomeOriginal: req.file.originalname,
+        caminho: `/uploads/${req.file.filename}`,
+        mimetype: req.file.mimetype
+      };
+    }
+
     const novoAtendimento = new Atendimento({ ...dadosParaSalvar, criadoPor: req.usuario.id });
     await novoAtendimento.save();
 
@@ -141,19 +149,27 @@ export const adicionarComentario = async (req, res) => {
     const { id } = req.params;
     const { mensagem } = req.body;
 
-    if (!mensagem) {
-      return res.status(400).json({ message: "A mensagem é obrigatória." });
+    if (!mensagem && !req.file) {
+      return res.status(400).json({ message: "É necessário enviar uma mensagem ou um anexo." });
+    }
+
+    const novoComentario = {
+      usuario: req.usuario.id,
+      mensagem: mensagem || "Anexo enviado"
+    };
+
+    if (req.file) {
+      novoComentario.anexo = {
+        nomeOriginal: req.file.originalname,
+        caminho: `/uploads/${req.file.filename}`,
+        mimetype: req.file.mimetype
+      };
     }
 
     const atendimentoAtualizado = await Atendimento.findByIdAndUpdate(
       id,
       {
-        $push: {
-          comentarios: {
-            usuario: req.usuario.id,
-            mensagem: mensagem
-          }
-        }
+        $push: { comentarios: novoComentario }
       },
       { new: true }
     )
