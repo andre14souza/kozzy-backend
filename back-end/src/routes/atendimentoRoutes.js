@@ -4,7 +4,8 @@ import {
   listarAtendimentos,
   buscarAtendimento,
   atualizarAtendimento,
-  deletarAtendimento
+  deletarAtendimento,
+  adicionarComentario
 } from "../controllers/atendimentoController.js";
 import { autenticar } from "../middleware/authMiddleware.js";
 
@@ -133,5 +134,38 @@ router.put("/:id", autenticar, atualizarAtendimento);
  *         description: Atendimento removido
  */
 router.delete("/:id", autenticar, deletarAtendimento);
+
+/**
+ * @swagger
+ * /api/atendimentos/{id}/comentarios:
+ *   post:
+ *     summary: Adiciona um comentário a um atendimento
+ *     tags: [Atendimentos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               mensagem:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Comentário adicionado com sucesso
+ *       400:
+ *         description: A mensagem é obrigatória
+ *       404:
+ *         description: Chamado não encontrado
+ */
+router.post("/:id/comentarios", autenticar, adicionarComentario);
 
 export default router;

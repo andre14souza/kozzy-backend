@@ -23,7 +23,8 @@ export const criarAtendimento = async (req, res) => {
 
     const populado = await Atendimento.findById(novoAtendimento._id)
       .populate('criadoPor', 'nomeCompleto')
-      .populate('atendente', 'nomeCompleto');
+      .populate('atendente', 'nomeCompleto')
+      .populate('comentarios.usuario', 'nomeCompleto');
 
     res.status(201).json(populado);
   } catch (error) {
@@ -57,7 +58,9 @@ export const atualizarAtendimento = async (req, res) => {
       id,
       { $set: dadosFormatados }, 
       { new: true }
-    ).populate('atendente', 'nomeCompleto');
+    )
+      .populate('atendente', 'nomeCompleto')
+      .populate('comentarios.usuario', 'nomeCompleto');
     
     if (!atualizado) return res.status(404).json({ message: "Chamado não encontrado" });
     res.json(atualizado);
@@ -79,6 +82,7 @@ export const listarAtendimentos = async (req, res) => {
     const atendimentos = await Atendimento.find(filtro)
       .populate('criadoPor', 'nomeCompleto email')
       .populate('atendente', 'nomeCompleto')
+      .populate('comentarios.usuario', 'nomeCompleto')
       .sort({ createdAt: -1 });
     res.json(atendimentos);
   } catch (error) {
@@ -90,7 +94,8 @@ export const buscarAtendimento = async (req, res) => {
   try {
     const atendimento = await Atendimento.findById(req.params.id)
       .populate('criadoPor', 'nomeCompleto')
-      .populate('atendente', 'nomeCompleto');
+      .populate('atendente', 'nomeCompleto')
+      .populate('comentarios.usuario', 'nomeCompleto');
     if (!atendimento) return res.status(404).json({ message: "Não encontrado" });
     res.json(atendimento);
   } catch (error) {
@@ -105,5 +110,40 @@ export const deletarAtendimento = async (req, res) => {
     res.json({ message: "Chamado deletado com sucesso" });
   } catch (error) {
     res.status(500).json({ message: "Erro ao deletar chamado" });
+  }
+};
+
+export const adicionarComentario = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { mensagem } = req.body;
+
+    if (!mensagem) {
+      return res.status(400).json({ message: "A mensagem é obrigatória." });
+    }
+
+    const atendimentoAtualizado = await Atendimento.findByIdAndUpdate(
+      id,
+      {
+        $push: {
+          comentarios: {
+            usuario: req.usuario.id,
+            mensagem: mensagem
+          }
+        }
+      },
+      { new: true }
+    )
+      .populate('criadoPor', 'nomeCompleto')
+      .populate('atendente', 'nomeCompleto')
+      .populate('comentarios.usuario', 'nomeCompleto');
+
+    if (!atendimentoAtualizado) {
+      return res.status(404).json({ message: "Chamado não encontrado" });
+    }
+
+    res.status(201).json(atendimentoAtualizado);
+  } catch (error) {
+    res.status(500).json({ message: "Erro ao adicionar comentário", error });
   }
 };
