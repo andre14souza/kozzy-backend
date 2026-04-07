@@ -105,17 +105,56 @@ export const atualizarAtendimento = async (req, res) => {
 export const listarAtendimentos = async (req, res) => {
   try {
     const { id, perfilAcesso } = req.usuario;
-    let filtro = {};
-    if (perfilAcesso !== 'supervisor' && perfilAcesso !== 'atendente') {
-        const areaVinculada = await Area.findOne({ usuarioId: id });
-        if (!areaVinculada || !areaVinculada.areas || areaVinculada.areas.length === 0) return res.json([]); 
-        filtro = { categoriaAssunto: { $in: areaVinculada.areas } };
+    const { status, prioridade, cliente, area, dataInicio, dataFim } = req.query;
+
+    // --- Filtro dinâmico a partir das query strings ---
+    const filtroDinamico = {};
+
+    if (status && status !== 'todos') {
+      filtroDinamico.avanco = status;
     }
-    const atendimentos = await Atendimento.find(filtro)
+
+    if (prioridade) {
+      filtroDinamico.nivelPrioridade = prioridade;
+    }
+
+    if (cliente) {
+      filtroDinamico.tipoCliente = cliente;
+    }
+
+    if (area) {
+      filtroDinamico.categoriaAssunto = area;
+    }
+
+    if (dataInicio || dataFim) {
+      filtroDinamico.createdAt = {};
+      if (dataInicio) {
+        filtroDinamico.createdAt.$gte = new Date(dataInicio);
+      }
+      if (dataFim) {
+        const fim = new Date(dataFim);
+        fim.setHours(23, 59, 59, 999);
+        filtroDinamico.createdAt.$lte = fim;
+      }
+    }
+
+    // --- Regra de segurança: restrição de área para não-supervisores ---
+    // Sobrescreve/força o categoriaAssunto para as áreas permitidas do utilizador.
+    if (perfilAcesso !== 'supervisor' && perfilAcesso !== 'atendente') {
+      const areaVinculada = await Area.findOne({ usuarioId: id });
+      if (!areaVinculada || !areaVinculada.areas || areaVinculada.areas.length === 0) {
+        return res.json([]);
+      }
+      // Força a restrição de área, ignorando qualquer filtro de área vindo da query string
+      filtroDinamico.categoriaAssunto = { $in: areaVinculada.areas };
+    }
+
+    const atendimentos = await Atendimento.find(filtroDinamico)
       .populate('criadoPor', 'nomeCompleto email')
       .populate('atendente', 'nomeCompleto')
       .populate('comentarios.usuario', 'nomeCompleto')
       .sort({ createdAt: -1 });
+
     res.json(atendimentos);
   } catch (error) {
     res.status(500).json({ message: "Erro ao carregar chamados" });
