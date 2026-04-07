@@ -102,54 +102,65 @@ export const atualizarAtendimento = async (req, res) => {
   }
 };
 
+// Helper: rejeita valores inúteis vindos da query string
+const isValid = (val) => val !== undefined && val !== null && val !== '' && val !== 'todos';
+
 export const listarAtendimentos = async (req, res) => {
   try {
     const { id, perfilAcesso } = req.usuario;
-    const { status, prioridade, cliente, area, dataInicio, dataFim } = req.query;
+    const { status, prioridade, cliente, area, origem, atendente, dataInicio, dataFim } = req.query;
 
-    // --- Filtro dinâmico a partir das query strings ---
-    const filtroDinamico = {};
+    // ─── 1. Construção dinâmica do filtro ────────────────────────────────────
+    let filtroQuery = {};
 
-    if (status && status !== 'todos') {
-      filtroDinamico.avanco = status;
-    }
+    if (isValid(status))     filtroQuery.avanco          = status;
+    if (isValid(prioridade)) filtroQuery.nivelPrioridade  = prioridade;
+    if (isValid(cliente))    filtroQuery.tipoCliente      = cliente;
+    if (isValid(origem))     filtroQuery.origem           = origem;
+    if (isValid(atendente))  filtroQuery.atendente        = atendente; // ObjectId enviado pelo frontend
 
-    if (prioridade) {
-      filtroDinamico.nivelPrioridade = prioridade;
-    }
+    // Filtro por área (pode ser sobrescrito pela regra de segurança abaixo)
+    if (isValid(area))       filtroQuery.categoriaAssunto = area;
 
-    if (cliente) {
-      filtroDinamico.tipoCliente = cliente;
-    }
-
-    if (area) {
-      filtroDinamico.categoriaAssunto = area;
-    }
-
-    if (dataInicio || dataFim) {
-      filtroDinamico.createdAt = {};
-      if (dataInicio) {
-        filtroDinamico.createdAt.$gte = new Date(dataInicio);
+    // Intervalo de datas sobre dataAtendimento
+    if (isValid(dataInicio) || isValid(dataFim)) {
+      filtroQuery.dataAtendimento = {};
+      if (isValid(dataInicio)) {
+        filtroQuery.dataAtendimento.$gte = new Date(dataInicio);
       }
-      if (dataFim) {
+      if (isValid(dataFim)) {
         const fim = new Date(dataFim);
         fim.setHours(23, 59, 59, 999);
-        filtroDinamico.createdAt.$lte = fim;
+        filtroQuery.dataAtendimento.$lte = fim;
       }
     }
 
-    // --- Regra de segurança: restrição de área para não-supervisores ---
-    // Sobrescreve/força o categoriaAssunto para as áreas permitidas do utilizador.
+    // ─── 2. Regra estrita de segurança (controlo de acesso por área) ─────────
     if (perfilAcesso !== 'supervisor' && perfilAcesso !== 'atendente') {
       const areaVinculada = await Area.findOne({ usuarioId: id });
+
       if (!areaVinculada || !areaVinculada.areas || areaVinculada.areas.length === 0) {
         return res.json([]);
       }
-      // Força a restrição de área, ignorando qualquer filtro de área vindo da query string
-      filtroDinamico.categoriaAssunto = { $in: areaVinculada.areas };
+
+      const restricaoSeguranca = { categoriaAssunto: { $in: areaVinculada.areas } };
+
+      if (isValid(area)) {
+        // Combina o filtro de área pedido com a restrição de segurança via $and,
+        // garantindo que o utilizador nunca vê fora das suas áreas permitidas.
+        delete filtroQuery.categoriaAssunto;
+        filtroQuery.$and = [
+          restricaoSeguranca,
+          { categoriaAssunto: area }
+        ];
+      } else {
+        // Sem filtro de área na query: aplica apenas a restrição de segurança.
+        filtroQuery.categoriaAssunto = restricaoSeguranca.categoriaAssunto;
+      }
     }
 
-    const atendimentos = await Atendimento.find(filtroDinamico)
+    // ─── 3. Execução da query ────────────────────────────────────────────────
+    const atendimentos = await Atendimento.find(filtroQuery)
       .populate('criadoPor', 'nomeCompleto email')
       .populate('atendente', 'nomeCompleto')
       .populate('comentarios.usuario', 'nomeCompleto')
@@ -157,6 +168,7 @@ export const listarAtendimentos = async (req, res) => {
 
     res.json(atendimentos);
   } catch (error) {
+    console.error("ERRO AO LISTAR ATENDIMENTOS:", error);
     res.status(500).json({ message: "Erro ao carregar chamados" });
   }
 };
