@@ -7,6 +7,7 @@ const AtendimentoSchema = new mongoose.Schema({
     enum: ["entregador", "vendedor", "cliente", "interno", "supervisor", "gerente"],
     required: true
   },
+  nomeCliente: { type: String, required: false },
   categoriaAssunto: {
     type: String,
     enum: ["Logistica", "Contas a Pagar", "Contas a Receber", "Compras", "T.I", "Comercial"],

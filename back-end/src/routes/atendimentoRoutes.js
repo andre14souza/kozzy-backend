@@ -41,6 +41,9 @@ const router = express.Router();
  *                 type: string
  *                 enum: [entregador, cliente_final, loja_estabelecimento]
  *                 example: "cliente_final"
+ *               nomeCliente:
+ *                 type: string
+ *                 example: "João da Bike"
  *               categoriaAssunto:
  *                 type: string
  *                 example: "Problemas de Entrega"
@@ -108,6 +111,8 @@ router.get("/:id", autenticar, buscarAtendimento);
  *             type: object
  *             properties:
  *               descricaoDetalhada:
+ *                 type: string
+ *               nomeCliente:
  *                 type: string
  *               avanco:
  *                 type: string

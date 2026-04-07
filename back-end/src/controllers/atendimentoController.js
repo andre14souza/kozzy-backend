@@ -66,6 +66,7 @@ export const atualizarAtendimento = async (req, res) => {
     const dadosFormatados = {};
     
     if (d.cliente || d.tipoCliente) dadosFormatados.tipoCliente = d.cliente || d.tipoCliente;
+    if (d.nomeCliente !== undefined) dadosFormatados.nomeCliente = d.nomeCliente;
     if (d.area || d.categoriaAssunto) dadosFormatados.categoriaAssunto = d.area || d.categoriaAssunto;
     if (d.categoria || d.assuntoEspecifico || d.assunto) dadosFormatados.assuntoEspecifico = d.categoria || d.assuntoEspecifico || d.assunto;
     if (d.descricao || d.descricaoDetalhada) dadosFormatados.descricaoDetalhada = d.descricao || d.descricaoDetalhada;
