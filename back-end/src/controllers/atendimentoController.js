@@ -55,6 +55,55 @@ export const criarAtendimento = async (req, res) => {
   }
 };
 
+export const criarSubChamado = async (req, res) => {
+  try {
+    if (req.usuario.perfilAcesso !== 'supervisor' && req.usuario.perfilAcesso !== 'atendente') {
+        return res.status(403).json({ message: "Acesso negado." });
+    }
+    
+    const { id: paiId } = req.params;
+    const atendimentoExistente = await Atendimento.findById(paiId);
+    if (!atendimentoExistente) return res.status(404).json({ message: "Chamado Pai não encontrado" });
+
+    const dadosParaSalvar = { ...req.body };
+    
+    if (!dadosParaSalvar.numeroProtocolo) {
+        // Formato para sub-chamados pode herdar o do pai e anexar um sufixo
+        dadosParaSalvar.numeroProtocolo = `${atendimentoExistente.numeroProtocolo}-SUB-${Math.floor(Math.random() * 1000)}`;
+    }
+
+    if (!dadosParaSalvar.atendente) {
+        dadosParaSalvar.atendente = req.usuario.id;
+    }
+
+    dadosParaSalvar.dataLimite = calcularDataLimite(dadosParaSalvar.nivelPrioridade || 'Média Prioridade');
+    dadosParaSalvar.chamadoPai = paiId;
+
+    if (req.file) {
+      dadosParaSalvar.anexo = {
+        nomeOriginal: req.file.originalname,
+        caminho: `/uploads/${req.file.filename}`,
+        mimetype: req.file.mimetype
+      };
+    }
+
+    const novoSubChamado = new Atendimento({ ...dadosParaSalvar, criadoPor: req.usuario.id });
+    await novoSubChamado.save();
+
+    // Atualiza o chamado pai (Composite) com a nova "Folha"
+    await Atendimento.findByIdAndUpdate(paiId, { $push: { subChamados: novoSubChamado._id } });
+
+    const populado = await Atendimento.findById(novoSubChamado._id)
+      .populate('criadoPor', 'nomeCompleto')
+      .populate('atendente', 'nomeCompleto')
+      .populate('comentarios.usuario', 'nomeCompleto');
+
+    res.status(201).json(populado);
+  } catch (error) {
+    res.status(500).json({ message: "Erro ao criar sub-chamado", error });
+  }
+};
+
 export const atualizarAtendimento = async (req, res) => {
   try {
     const { id } = req.params;
@@ -108,10 +157,18 @@ const isValid = (val) => val !== undefined && val !== null && val !== '' && val 
 export const listarAtendimentos = async (req, res) => {
   try {
     const { id, perfilAcesso } = req.usuario;
-    const { status, prioridade, cliente, area, origem, atendente, dataInicio, dataFim } = req.query;
+    const { status, prioridade, cliente, area, origem, atendente, dataInicio, dataFim, numeroProtocolo } = req.query;
 
     // ─── 1. Construção dinâmica do filtro ────────────────────────────────────
     let filtroQuery = {};
+
+    // Por padrão exibe apenas chamados raiz (sem pai)
+    // Se o usuário procurou por algo exato (como um número de protocolo), ignora isso
+    if (!isValid(numeroProtocolo)) {
+      filtroQuery.chamadoPai = null;
+    } else {
+      filtroQuery.numeroProtocolo = numeroProtocolo; // Busca exata
+    }
 
     if (isValid(status))     filtroQuery.avanco          = status;
     if (isValid(prioridade)) filtroQuery.nivelPrioridade  = prioridade;
@@ -178,7 +235,8 @@ export const buscarAtendimento = async (req, res) => {
     const atendimento = await Atendimento.findById(req.params.id)
       .populate('criadoPor', 'nomeCompleto')
       .populate('atendente', 'nomeCompleto')
-      .populate('comentarios.usuario', 'nomeCompleto');
+      .populate('comentarios.usuario', 'nomeCompleto')
+      .populate('subChamados', 'numeroProtocolo assuntoEspecifico avanco nivelPrioridade');
     if (!atendimento) return res.status(404).json({ message: "Não encontrado" });
     res.json(atendimento);
   } catch (error) {

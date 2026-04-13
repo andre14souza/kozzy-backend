@@ -5,7 +5,8 @@ import {
   buscarAtendimento,
   atualizarAtendimento,
   deletarAtendimento,
-  adicionarComentario
+  adicionarComentario,
+  criarSubChamado
 } from "../controllers/atendimentoController.js";
 import { autenticar } from "../middleware/authMiddleware.js";
 import { upload } from "../middleware/upload.js";
@@ -173,5 +174,42 @@ router.delete("/:id", autenticar, deletarAtendimento);
  *         description: Chamado não encontrado
  */
 router.post("/:id/comentarios", autenticar, upload.single('anexo'), adicionarComentario);
+
+/**
+ * @swagger
+ * /api/atendimentos/{id}/subchamados:
+ *   post:
+ *     summary: Cria um sub-chamado vinculado a um chamado principal
+ *     tags: [Atendimentos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               tipoCliente:
+ *                 type: string
+ *               categoriaAssunto:
+ *                 type: string
+ *               assuntoEspecifico:
+ *                 type: string
+ *               descricaoDetalhada:
+ *                 type: string
+ *               nivelPrioridade:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Sub-chamado criado com sucesso
+ */
+router.post("/:id/subchamados", autenticar, upload.single('anexo'), criarSubChamado);
 
 export default router;

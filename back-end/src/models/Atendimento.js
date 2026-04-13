@@ -53,7 +53,9 @@ const AtendimentoSchema = new mongoose.Schema({
       mimetype: { type: String }
     },
     dataCriacao: { type: Date, default: Date.now }
-  }]
+  }],
+  chamadoPai: { type: mongoose.Schema.Types.ObjectId, ref: "Atendimento", default: null },
+  subChamados: [{ type: mongoose.Schema.Types.ObjectId, ref: "Atendimento" }]
 }, { timestamps: true });
 
 export default mongoose.model("Atendimento", AtendimentoSchema);
