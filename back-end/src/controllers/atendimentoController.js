@@ -67,6 +67,14 @@ export const criarSubChamado = async (req, res) => {
 
     const dadosParaSalvar = { ...req.body };
     
+    // Herda as informações do cliente do chamado pai caso não tenham sido enviadas na requisição
+    if (!dadosParaSalvar.tipoCliente) {
+        dadosParaSalvar.tipoCliente = atendimentoExistente.tipoCliente;
+    }
+    if (!dadosParaSalvar.nomeCliente && atendimentoExistente.nomeCliente) {
+        dadosParaSalvar.nomeCliente = atendimentoExistente.nomeCliente;
+    }
+    
     if (!dadosParaSalvar.numeroProtocolo) {
         // Formato para sub-chamados pode herdar o do pai e anexar um sufixo
         dadosParaSalvar.numeroProtocolo = `${atendimentoExistente.numeroProtocolo}-SUB-${Math.floor(Math.random() * 1000)}`;
