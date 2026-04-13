@@ -44,6 +44,11 @@ export const criarAtendimento = async (req, res) => {
     const novoAtendimento = new Atendimento({ ...dadosParaSalvar, criadoPor: req.usuario.id });
     await novoAtendimento.save();
 
+    // Se o frontend injetar chamadoPai pela rota padrão, atrela bidirecionalmente
+    if (dadosParaSalvar.chamadoPai) {
+      await Atendimento.findByIdAndUpdate(dadosParaSalvar.chamadoPai, { $push: { subChamados: novoAtendimento._id } });
+    }
+
     const populado = await Atendimento.findById(novoAtendimento._id)
       .populate('criadoPor', 'nomeCompleto')
       .populate('atendente', 'nomeCompleto')
@@ -229,6 +234,7 @@ export const listarAtendimentos = async (req, res) => {
       .populate('criadoPor', 'nomeCompleto email')
       .populate('atendente', 'nomeCompleto')
       .populate('comentarios.usuario', 'nomeCompleto')
+      .populate('subChamados')
       .sort({ createdAt: -1 });
 
     res.json(atendimentos);
