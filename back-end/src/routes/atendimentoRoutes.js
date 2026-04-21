@@ -6,7 +6,8 @@ import {
   atualizarAtendimento,
   deletarAtendimento,
   adicionarComentario,
-  criarSubChamado
+  criarSubChamado,
+  obterEstatisticas
 } from "../controllers/atendimentoController.js";
 import { autenticar } from "../middleware/authMiddleware.js";
 import { upload } from "../middleware/upload.js";
@@ -58,6 +59,20 @@ const router = express.Router();
  *       201:
  *         description: Atendimento criado com sucesso
  */
+/**
+ * @swagger
+ * /api/atendimentos/estatisticas:
+ *   get:
+ *     summary: Retorna estatísticas de atendimentos para o dashboard
+ *     tags: [Atendimentos]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Estatísticas retornadas com sucesso
+ */
+router.get("/estatisticas", autenticar, obterEstatisticas);
+
 router.post("/", autenticar, upload.single('anexo'), criarAtendimento);
 
 /**

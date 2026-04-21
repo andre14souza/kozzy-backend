@@ -37,6 +37,7 @@ export const criarAtendimento = async (req, res) => {
       dadosParaSalvar.anexo = {
         nomeOriginal: req.file.originalname,
         caminho: `/uploads/${req.file.filename}`,
+        url: `/uploads/${req.file.filename}`, // Para o frontend usar caminho relativo
         mimetype: req.file.mimetype
       };
     }
@@ -96,6 +97,7 @@ export const criarSubChamado = async (req, res) => {
       dadosParaSalvar.anexo = {
         nomeOriginal: req.file.originalname,
         caminho: `/uploads/${req.file.filename}`,
+        url: `/uploads/${req.file.filename}`,
         mimetype: req.file.mimetype
       };
     }
@@ -286,6 +288,7 @@ export const adicionarComentario = async (req, res) => {
       novoComentario.anexo = {
         nomeOriginal: req.file.originalname,
         caminho: `/uploads/${req.file.filename}`,
+        url: `/uploads/${req.file.filename}`,
         mimetype: req.file.mimetype
       };
     }
@@ -308,5 +311,36 @@ export const adicionarComentario = async (req, res) => {
     res.status(201).json(atendimentoAtualizado);
   } catch (error) {
     res.status(500).json({ message: "Erro ao adicionar comentário", error });
+  }
+};
+
+export const obterEstatisticas = async (req, res) => {
+  try {
+    const estatisticasStatus = await Atendimento.aggregate([
+      {
+        $group: {
+          _id: "$avanco",
+          total: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const estatisticasArea = await Atendimento.aggregate([
+      {
+        $group: {
+          _id: "$categoriaAssunto",
+          total: { $sum: 1 }
+        }
+      }
+    ]);
+
+    res.json({
+      porStatus: estatisticasStatus.map(s => ({ status: s._id, total: s.total })),
+      porArea: estatisticasArea.map(a => ({ area: a._id, total: a.total }))
+    });
+
+  } catch (error) {
+    console.error("ERRO AO OBTER ESTATÍSTICAS:", error);
+    res.status(500).json({ message: "Erro ao gerar estatísticas", error });
   }
 };

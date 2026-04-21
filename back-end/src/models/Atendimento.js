@@ -42,6 +42,7 @@ const AtendimentoSchema = new mongoose.Schema({
   anexo: {
     nomeOriginal: { type: String },
     caminho: { type: String },
+    url: { type: String },
     mimetype: { type: String }
   },
   comentarios: [{
@@ -50,6 +51,7 @@ const AtendimentoSchema = new mongoose.Schema({
     anexo: {
       nomeOriginal: { type: String },
       caminho: { type: String },
+      url: { type: String },
       mimetype: { type: String }
     },
     dataCriacao: { type: Date, default: Date.now }
