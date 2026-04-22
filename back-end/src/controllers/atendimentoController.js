@@ -232,6 +232,10 @@ export const listarAtendimentos = async (req, res) => {
     }
 
     // ─── 3. Execução da query ────────────────────────────────────────────────
+    console.log("================ FILTRO DA QUERY (listarAtendimentos) ================");
+    console.log(JSON.stringify(filtroQuery, null, 2));
+    console.log("======================================================================");
+
     const atendimentos = await Atendimento.find(filtroQuery)
       .populate('criadoPor', 'nomeCompleto email')
       .populate('atendente', 'nomeCompleto')
@@ -239,7 +243,28 @@ export const listarAtendimentos = async (req, res) => {
       .populate('subChamados')
       .sort({ createdAt: -1 });
 
-    res.json(atendimentos);
+    // ─── Proteção contra Referências Deletadas (Populate Null Guard) ─────────
+    const atendimentosProcessados = atendimentos.map(atd => {
+      const obj = atd.toObject();
+      
+      // Se criadoPor ou atendente (que tinha ID mas usuário foi apagado) vier nulo
+      if (!obj.criadoPor) {
+        obj.criadoPor = { nomeCompleto: 'Usuário Removido', email: 'removido@sistema' };
+      }
+      
+      if (obj.comentarios && Array.isArray(obj.comentarios)) {
+        obj.comentarios = obj.comentarios.map(c => {
+          if (!c.usuario) {
+            c.usuario = { nomeCompleto: 'Usuário Removido' };
+          }
+          return c;
+        });
+      }
+      
+      return obj;
+    });
+
+    res.json(atendimentosProcessados);
   } catch (error) {
     console.error("ERRO AO LISTAR ATENDIMENTOS:", error);
     res.status(500).json({ message: "Erro ao carregar chamados" });
