@@ -2,6 +2,7 @@ import express from "express";
 import {
   criarUsuario,
   listarUsuarios,
+  listarAtendentes,
   buscarUsuario,
   atualizarUsuario,
   deletarUsuario,
@@ -89,6 +90,20 @@ router.post("/login", login);
  *         description: Lista retornada com sucesso
  */
 router.get("/", autenticar, listarUsuarios);
+
+/**
+ * @swagger
+ * /api/usuarios/atendentes:
+ *   get:
+ *     summary: Lista apenas os usuários que podem assumir chamados (atendente/supervisor)
+ *     tags: [Usuários]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista retornada com sucesso
+ */
+router.get("/atendentes", autenticar, listarAtendentes);
 
 /**
  * @swagger

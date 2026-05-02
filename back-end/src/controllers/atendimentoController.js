@@ -160,6 +160,16 @@ export const atualizarAtendimento = async (req, res) => {
     const atendimentoExistente = await Atendimento.findById(id);
     if (!atendimentoExistente) return res.status(404).json({ message: "Chamado não encontrado" });
 
+    // ✅ VERIFICAÇÃO DE PERMISSÃO PARA EDIÇÃO
+    const ehSupervisor = req.usuario.perfilAcesso === 'supervisor';
+    const ehAtendenteResponsavel = atendimentoExistente.atendente && atendimentoExistente.atendente.toString() === req.usuario.id.toString();
+    const ehCriador = atendimentoExistente.criadoPor && atendimentoExistente.criadoPor.toString() === req.usuario.id.toString();
+    const estaAssumindo = !atendimentoExistente.atendente && dadosFormatados.atendente === req.usuario.id;
+
+    if (!ehSupervisor && !ehAtendenteResponsavel && !ehCriador && !estaAssumindo) {
+      return res.status(403).json({ message: "Acesso negado. Apenas o supervisor, o criador ou o atendente responsável podem editar este chamado." });
+    }
+
     // Recalcula o SLA apenas se a prioridade foi alterada
     if (dadosFormatados.nivelPrioridade && dadosFormatados.nivelPrioridade !== atendimentoExistente.nivelPrioridade) {
       dadosFormatados.dataLimite = calcularDataLimite(dadosFormatados.nivelPrioridade);
@@ -206,12 +216,14 @@ export const listarAtendimentos = async (req, res) => {
       filtroQuery.numeroProtocolo = numeroProtocolo; // Busca exata
     }
 
-    if (isValid(status))     filtroQuery.avanco          = status;
+    if (isValid(status)) {
+      filtroQuery.avanco = { $regex: new RegExp(`^${status}$`, 'i') };
+    }
     
     if (prioridadeMinima === 'true') {
       filtroQuery.nivelPrioridade = { $in: ['Alta Prioridade', 'Urgente', 'Alta'] };
     } else if (isValid(prioridade)) {
-      filtroQuery.nivelPrioridade = prioridade;
+      filtroQuery.nivelPrioridade = { $regex: new RegExp(`^${prioridade}$`, 'i') };
     }
 
     if (isValid(cliente)) {

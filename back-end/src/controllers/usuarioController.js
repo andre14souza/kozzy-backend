@@ -77,6 +77,17 @@ export const listarUsuarios = async (req, res) => {
   }
 };
 
+export const listarAtendentes = async (req, res) => {
+  try {
+    const atendentes = await Usuario.find({
+      perfilAcesso: { $in: ["atendente", "supervisor"] }
+    }).select("_id nomeCompleto");
+    res.json(atendentes);
+  } catch (error) {
+    res.status(500).json({ message: "Erro ao listar atendentes", error });
+  }
+};
+
 export const buscarUsuario = async (req, res) => {
   try {
     const usuario = await Usuario.findById(req.params.id).select("-senha");
@@ -105,13 +116,14 @@ export const atualizarUsuario = async (req, res) => {
 
 export const atualizarPerfil = async (req, res) => {
   try {
-    const { nomeCompleto, nome, email, senha } = req.body;
+    const { nomeCompleto, nome, email, senha, preferenciaTema } = req.body;
     const updateData = {};
     
     // Suporta tanto o campo nomeCompleto quanto nome
     if (nomeCompleto) updateData.nomeCompleto = nomeCompleto;
     if (nome) updateData.nomeCompleto = nome;
     if (email) updateData.email = email;
+    if (preferenciaTema) updateData.preferenciaTema = preferenciaTema;
     if (senha) {
       updateData.senha = await bcrypt.hash(senha, 10);
     }
