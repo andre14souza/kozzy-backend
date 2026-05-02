@@ -172,7 +172,7 @@ const isValid = (val) => val !== undefined && val !== null && val !== '' && val 
 export const listarAtendimentos = async (req, res) => {
   try {
     const { id, perfilAcesso } = req.usuario;
-    const { status, prioridade, cliente, area, origem, atendente, dataInicio, dataFim, numeroProtocolo } = req.query;
+    const { status, prioridade, cliente, area, origem, atendente, dataInicio, dataFim, numeroProtocolo, prioridadeMinima, apenasHoje } = req.query;
 
     // ─── 1. Construção dinâmica do filtro ────────────────────────────────────
     let filtroQuery = {};
@@ -186,8 +186,26 @@ export const listarAtendimentos = async (req, res) => {
     }
 
     if (isValid(status))     filtroQuery.avanco          = status;
-    if (isValid(prioridade)) filtroQuery.nivelPrioridade  = prioridade;
-    if (isValid(cliente))    filtroQuery.tipoCliente      = cliente;
+    
+    if (prioridadeMinima === 'true') {
+      filtroQuery.nivelPrioridade = { $in: ['Alta Prioridade', 'Urgente', 'Alta'] };
+    } else if (isValid(prioridade)) {
+      filtroQuery.nivelPrioridade = prioridade;
+    }
+
+    if (isValid(cliente)) {
+      // Busca parcial e case-insensitive
+      filtroQuery.tipoCliente = { $regex: cliente, $options: 'i' };
+    }
+
+    if (apenasHoje === 'true') {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
+      filtroQuery.createdAt = { $gte: startOfDay, $lte: endOfDay };
+    }
+
     if (isValid(origem))     filtroQuery.origem           = origem;
     if (isValid(atendente))  filtroQuery.atendente        = atendente; // ObjectId enviado pelo frontend
 
@@ -243,7 +261,7 @@ export const listarAtendimentos = async (req, res) => {
       .populate('subChamados')
       .sort({ createdAt: -1 });
 
-    // ─── Proteção contra Referências Deletadas (Populate Null Guard) ─────────
+    // ─── Proteção contra Referências Deletadas (Populate Null Guard) e Privacidade ───
     const atendimentosProcessados = atendimentos.map(atd => {
       const obj = atd.toObject();
       
@@ -253,7 +271,13 @@ export const listarAtendimentos = async (req, res) => {
       }
       
       if (obj.comentarios && Array.isArray(obj.comentarios)) {
-        obj.comentarios = obj.comentarios.map(c => {
+        obj.comentarios = obj.comentarios.filter(c => {
+          if (!c.isPrivado) return true;
+          const ehSupervisor = req.usuario.perfilAcesso === 'supervisor';
+          const atendenteId = obj.atendente ? (obj.atendente._id ? obj.atendente._id.toString() : obj.atendente.toString()) : null;
+          const ehAtendente = atendenteId === req.usuario.id;
+          return ehSupervisor || ehAtendente;
+        }).map(c => {
           if (!c.usuario) {
             c.usuario = { nomeCompleto: 'Usuário Removido' };
           }
@@ -264,7 +288,8 @@ export const listarAtendimentos = async (req, res) => {
       return obj;
     });
 
-    res.json(atendimentosProcessados);
+    // Garante retorno de array puro
+    res.json(Array.isArray(atendimentosProcessados) ? atendimentosProcessados : []);
   } catch (error) {
     console.error("ERRO AO LISTAR ATENDIMENTOS:", error);
     res.status(500).json({ message: "Erro ao carregar chamados" });
@@ -279,7 +304,22 @@ export const buscarAtendimento = async (req, res) => {
       .populate('comentarios.usuario', 'nomeCompleto')
       .populate('subChamados', 'numeroProtocolo assuntoEspecifico avanco nivelPrioridade');
     if (!atendimento) return res.status(404).json({ message: "Não encontrado" });
-    res.json(atendimento);
+
+    const atdObj = atendimento.toObject();
+
+    console.log(`[GET /atendimentos/${req.params.id}] Buscando detalhes do chamado. Filtros de privacidade sendo aplicados.`);
+
+    if (atdObj.comentarios && Array.isArray(atdObj.comentarios)) {
+      atdObj.comentarios = atdObj.comentarios.filter(c => {
+        if (!c.isPrivado) return true;
+        const ehSupervisor = req.usuario.perfilAcesso === 'supervisor';
+        const atendenteId = atdObj.atendente ? (atdObj.atendente._id ? atdObj.atendente._id.toString() : atdObj.atendente.toString()) : null;
+        const ehAtendente = atendenteId === req.usuario.id;
+        return ehSupervisor || ehAtendente;
+      });
+    }
+
+    res.json(atdObj);
   } catch (error) {
     res.status(500).json({ message: "Erro ao buscar", error });
   }
@@ -298,7 +338,7 @@ export const deletarAtendimento = async (req, res) => {
 export const adicionarComentario = async (req, res) => {
   try {
     const { id } = req.params;
-    const { mensagem } = req.body;
+    const { mensagem, isPrivado } = req.body;
 
     if (!mensagem && !req.file) {
       return res.status(400).json({ message: "É necessário enviar uma mensagem ou um anexo." });
@@ -306,7 +346,8 @@ export const adicionarComentario = async (req, res) => {
 
     const novoComentario = {
       usuario: req.usuario.id,
-      mensagem: mensagem || "Anexo enviado"
+      mensagem: mensagem || "Anexo enviado",
+      isPrivado: isPrivado === true || isPrivado === 'true'
     };
 
     if (req.file) {

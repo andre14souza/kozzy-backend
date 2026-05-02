@@ -7,6 +7,7 @@ import {
   deletarUsuario,
   login,
   logout,
+  atualizarPerfil,
 } from "../controllers/usuarioController.js";
 import { autenticar } from "../middleware/authMiddleware.js";
 
@@ -106,6 +107,33 @@ router.get("/", autenticar, listarUsuarios);
  *         description: Usuário encontrado
  */
 router.get("/:id", autenticar, buscarUsuario);
+
+/**
+ * @swagger
+ * /api/usuarios/perfil:
+ *   put:
+ *     summary: Atualiza o perfil do próprio usuário (nome, email, senha)
+ *     tags: [Usuários]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               nome:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               senha:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Perfil atualizado
+ */
+router.put("/perfil", autenticar, atualizarPerfil);
 
 /**
  * @swagger

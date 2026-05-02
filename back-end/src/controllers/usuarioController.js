@@ -103,6 +103,34 @@ export const atualizarUsuario = async (req, res) => {
   }
 };
 
+export const atualizarPerfil = async (req, res) => {
+  try {
+    const { nomeCompleto, nome, email, senha } = req.body;
+    const updateData = {};
+    
+    // Suporta tanto o campo nomeCompleto quanto nome
+    if (nomeCompleto) updateData.nomeCompleto = nomeCompleto;
+    if (nome) updateData.nomeCompleto = nome;
+    if (email) updateData.email = email;
+    if (senha) {
+      updateData.senha = await bcrypt.hash(senha, 10);
+    }
+    
+    // O req.usuario.id vem do middleware de autenticação (JWT)
+    const usuarioAtualizado = await Usuario.findByIdAndUpdate(
+      req.usuario.id,
+      updateData,
+      { new: true }
+    ).select("-senha");
+    
+    if (!usuarioAtualizado) return res.status(404).json({ message: "Usuário não encontrado." });
+    
+    res.json({ message: "Perfil atualizado com sucesso", usuario: usuarioAtualizado });
+  } catch (error) {
+    res.status(500).json({ message: "Erro ao atualizar perfil", error });
+  }
+};
+
 export const deletarUsuario = async (req, res) => {
   try {
     const usuario = await Usuario.findByIdAndDelete(req.params.id);

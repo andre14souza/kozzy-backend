@@ -54,6 +54,7 @@ const AtendimentoSchema = new mongoose.Schema({
       url: { type: String },
       mimetype: { type: String }
     },
+    isPrivado: { type: Boolean, default: false },
     dataCriacao: { type: Date, default: Date.now }
   }],
   chamadoPai: { type: mongoose.Schema.Types.ObjectId, ref: "Atendimento", default: null },
