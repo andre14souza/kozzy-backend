@@ -134,7 +134,23 @@ export const atualizarAtendimento = async (req, res) => {
     if (d.area || d.categoriaAssunto) dadosFormatados.categoriaAssunto = d.area || d.categoriaAssunto;
     if (d.categoria || d.assuntoEspecifico || d.assunto) dadosFormatados.assuntoEspecifico = d.categoria || d.assuntoEspecifico || d.assunto;
     if (d.descricao || d.descricaoDetalhada) dadosFormatados.descricaoDetalhada = d.descricao || d.descricaoDetalhada;
-    if (d.prioridade || d.nivelPrioridade) dadosFormatados.nivelPrioridade = d.prioridade || d.nivelPrioridade;
+    
+    let prioridadeRaw = d.prioridade || d.nivelPrioridade;
+    if (prioridadeRaw) {
+      prioridadeRaw = prioridadeRaw.trim();
+      // Normalização para os valores do Schema
+      if (/^baixa/i.test(prioridadeRaw)) prioridadeRaw = "Baixa Prioridade";
+      else if (/^m[ée]dia/i.test(prioridadeRaw)) prioridadeRaw = "Média Prioridade";
+      else if (/^alta/i.test(prioridadeRaw)) prioridadeRaw = "Alta Prioridade";
+      else if (/urgente/i.test(prioridadeRaw)) prioridadeRaw = "Urgente";
+
+      const prioridadesPermitidas = ["Baixa Prioridade", "Média Prioridade", "Alta Prioridade", "Urgente"];
+      if (!prioridadesPermitidas.includes(prioridadeRaw)) {
+        return res.status(400).json({ message: `Prioridade inválida: ${d.prioridade || d.nivelPrioridade}. Valores permitidos: Baixa Prioridade, Média Prioridade, Alta Prioridade, Urgente` });
+      }
+      dadosFormatados.nivelPrioridade = prioridadeRaw;
+    }
+
     if (d.status || d.avanco) dadosFormatados.avanco = d.status || d.avanco;
     
     if (d.atendente !== undefined) dadosFormatados.atendente = d.atendente || null;
@@ -150,19 +166,24 @@ export const atualizarAtendimento = async (req, res) => {
     }
 
     // ✅ CORREÇÃO: Utiliza o $set com os dados formatados limpos
+    // Isto garante que não interferimos com a estrutura de árvore do Composite (chamadoPai/subChamados)
+    // caso não sejam enviados na request.
     const atualizado = await Atendimento.findByIdAndUpdate(
       id,
       { $set: dadosFormatados }, 
       { new: true }
     )
+      .populate('criadoPor', 'nomeCompleto')
       .populate('atendente', 'nomeCompleto')
-      .populate('comentarios.usuario', 'nomeCompleto');
+      .populate('comentarios.usuario', 'nomeCompleto')
+      .populate('subChamados', 'numeroProtocolo assuntoEspecifico avanco nivelPrioridade');
     
     if (!atualizado) return res.status(404).json({ message: "Chamado não encontrado" });
+    
     res.json(atualizado);
   } catch (error) {
-    console.error("ERRO AO SALVAR:", error);
-    res.status(500).json({ message: "Erro interno ao salvar" });
+    console.error("ERRO AO ATUALIZAR ATENDIMENTO:", error);
+    res.status(400).json({ message: error.message || "Erro interno ao salvar" });
   }
 };
 
