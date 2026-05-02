@@ -14,6 +14,16 @@ const calcularDataLimite = (prioridade) => {
   return dataLimite;
 };
 
+// Helper: Limpa caminhos de ficheiros guardados no banco para o formato padrão /uploads/nome
+const limparCaminhoAnexo = (anexo) => {
+  if (!anexo || !anexo.caminho) return anexo;
+  // Extrai apenas o nome do arquivo, prevenindo caminhos absolutos como C:\... ou /home/...
+  const nomeArquivo = anexo.caminho.split(/[\\/]/).pop();
+  anexo.caminho = `/uploads/${nomeArquivo}`;
+  anexo.url = `/uploads/${nomeArquivo}`;
+  return anexo;
+};
+
 export const criarAtendimento = async (req, res) => {
   try {
     if (req.usuario.perfilAcesso !== 'supervisor' && req.usuario.perfilAcesso !== 'atendente') {
@@ -318,6 +328,15 @@ export const listarAtendimentos = async (req, res) => {
         });
       }
       
+      // Normaliza caminhos de anexos para registos antigos
+      if (obj.anexo) obj.anexo = limparCaminhoAnexo(obj.anexo);
+      if (obj.comentarios) {
+        obj.comentarios = obj.comentarios.map(c => {
+          if (c.anexo) c.anexo = limparCaminhoAnexo(c.anexo);
+          return c;
+        });
+      }
+
       return obj;
     });
 
@@ -349,6 +368,15 @@ export const buscarAtendimento = async (req, res) => {
         const atendenteId = atdObj.atendente ? (atdObj.atendente._id ? atdObj.atendente._id.toString() : atdObj.atendente.toString()) : null;
         const ehAtendente = atendenteId === req.usuario.id;
         return ehSupervisor || ehAtendente;
+      });
+    }
+
+    // Normaliza caminhos de anexos para registos antigos
+    if (atdObj.anexo) atdObj.anexo = limparCaminhoAnexo(atdObj.anexo);
+    if (atdObj.comentarios) {
+      atdObj.comentarios = atdObj.comentarios.map(c => {
+        if (c.anexo) c.anexo = limparCaminhoAnexo(c.anexo);
+        return c;
       });
     }
 
