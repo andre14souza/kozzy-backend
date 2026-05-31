@@ -123,7 +123,7 @@ export const criarSubChamado = async (req, res) => {
     const novoSubChamado = new Atendimento({ ...dadosParaSalvar, criadoPor: req.usuario.id });
     await novoSubChamado.save();
 
-    // {1} Atualiza o chamado pai (Composite) com a nova "Folha"
+    // Atualiza o chamado pai (Composite) com a nova "Folha"
     await Atendimento.findByIdAndUpdate(paiId, { $push: { subChamados: novoSubChamado._id } });
 
     const populado = await Atendimento.findById(novoSubChamado._id)
@@ -174,7 +174,6 @@ export const atualizarAtendimento = async (req, res) => {
     if (d.atendente !== undefined) dadosFormatados.atendente = d.atendente || null;
     if (d.solucao !== undefined) dadosFormatados.solucao = d.solucao;
     if (d.origem !== undefined) dadosFormatados.origem = d.origem;
-
     if (req.file) {
       dadosFormatados.anexo = {
         nomeOriginal: req.file.originalname,

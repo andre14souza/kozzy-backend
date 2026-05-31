@@ -38,7 +38,6 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-
 app.get('/api/test-cookie', (req, res) => {
     res.json({ cookies: req.cookies, tokenPresent: !!req.cookies.token });
 });

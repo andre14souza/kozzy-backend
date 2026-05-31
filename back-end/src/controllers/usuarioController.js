@@ -154,7 +154,6 @@ export const atualizarPerfil = async (req, res) => {
     if (foto !== undefined) {
       updateData.fotoPerfil = foto;
     }
-    
     // O req.usuario.id vem do middleware de autenticação (JWT)
     const usuarioAtualizado = await Usuario.findByIdAndUpdate(
       req.usuario.id,
