@@ -2,14 +2,24 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { Usuario } from "../models/Usuario.js";
 import Area from "../models/Area.js";
+
+// Helper: Limpa caminhos de fotos de perfil para o formato padrão /uploads/nome
+const limparCaminho = (caminho) => {
+  if (!caminho || typeof caminho !== "string") return "";
+  const nomeArquivo = caminho.split(/[\\/]/).pop();
+  return `/uploads/${nomeArquivo}`;
+};
+
 export const criarUsuario = async (req, res) => {
   try {
-    const { nomeCompleto, email, senha, perfilAcesso } = req.body;
+    const { nomeCompleto, email, senha, perfilAcesso, fotoPerfil, avatar } = req.body;
 
     const existe = await Usuario.findOne({ email });
     if (existe) return res.status(400).json({ message: "Email já cadastrado." });
 
     const hash = await bcrypt.hash(senha, 10);
+
+    const foto = req.file ? `/uploads/${req.file.filename}` : limparCaminho(fotoPerfil || avatar);
 
     // 1. Cria o Usuário
     const novoUsuario = new Usuario({
@@ -17,6 +27,7 @@ export const criarUsuario = async (req, res) => {
       email,
       senha: hash,
       perfilAcesso,
+      fotoPerfil: foto
     });
 
     const usuarioSalvo = await novoUsuario.save();
@@ -100,10 +111,21 @@ export const buscarUsuario = async (req, res) => {
 
 export const atualizarUsuario = async (req, res) => {
   try {
-    const { nomeCompleto, email, perfilAcesso } = req.body;
+    const { nomeCompleto, email, perfilAcesso, fotoPerfil, avatar } = req.body;
+    
+    const updateData = {};
+    if (nomeCompleto !== undefined) updateData.nomeCompleto = nomeCompleto;
+    if (email !== undefined) updateData.email = email;
+    if (perfilAcesso !== undefined) updateData.perfilAcesso = perfilAcesso;
+    
+    const foto = req.file ? `/uploads/${req.file.filename}` : (fotoPerfil !== undefined || avatar !== undefined ? limparCaminho(fotoPerfil || avatar) : undefined);
+    if (foto !== undefined) {
+      updateData.fotoPerfil = foto;
+    }
+
     const usuario = await Usuario.findByIdAndUpdate(
       req.params.id,
-      { nomeCompleto, email, perfilAcesso },
+      updateData,
       { new: true }
     ).select("-senha");
 
@@ -116,7 +138,7 @@ export const atualizarUsuario = async (req, res) => {
 
 export const atualizarPerfil = async (req, res) => {
   try {
-    const { nomeCompleto, nome, email, senha, preferenciaTema } = req.body;
+    const { nomeCompleto, nome, email, senha, preferenciaTema, fotoPerfil, avatar } = req.body;
     const updateData = {};
     
     // Suporta tanto o campo nomeCompleto quanto nome
@@ -126,6 +148,11 @@ export const atualizarPerfil = async (req, res) => {
     if (preferenciaTema) updateData.preferenciaTema = preferenciaTema;
     if (senha) {
       updateData.senha = await bcrypt.hash(senha, 10);
+    }
+    
+    const foto = req.file ? `/uploads/${req.file.filename}` : (fotoPerfil !== undefined || avatar !== undefined ? limparCaminho(fotoPerfil || avatar) : undefined);
+    if (foto !== undefined) {
+      updateData.fotoPerfil = foto;
     }
     
     // O req.usuario.id vem do middleware de autenticação (JWT)

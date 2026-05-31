@@ -175,6 +175,17 @@ export const atualizarAtendimento = async (req, res) => {
     if (d.solucao !== undefined) dadosFormatados.solucao = d.solucao;
     if (d.origem !== undefined) dadosFormatados.origem = d.origem;
 
+    if (req.file) {
+      dadosFormatados.anexo = {
+        nomeOriginal: req.file.originalname,
+        caminho: `/uploads/${req.file.filename}`,
+        url: `/uploads/${req.file.filename}`,
+        mimetype: req.file.mimetype
+      };
+    } else if (d.anexo !== undefined) {
+      dadosFormatados.anexo = d.anexo ? limparCaminhoAnexo(d.anexo) : null;
+    }
+
     const atendimentoExistente = await Atendimento.findById(id);
     if (!atendimentoExistente) return res.status(404).json({ message: "Chamado não encontrado" });
 

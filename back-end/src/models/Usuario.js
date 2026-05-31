@@ -29,6 +29,10 @@ const usuarioSchema = new mongoose.Schema({
     type: String,
     enum: ["light", "dark"],
     default: "light"
+  },
+  fotoPerfil: {
+    type: String,
+    default: ""
   }
 });
 
