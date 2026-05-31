@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { connectDB } from "./config/db.js";
 import usuarioRoutes from "./routes/usuarioRoutes.js";
@@ -32,7 +33,11 @@ app.use(express.json());
 app.use(cookieParser()); 
 
 // EXPOR A PASTA UPLOADS ESTATICAMENTE
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
 app.get('/api/test-cookie', (req, res) => {
     res.json({ cookies: req.cookies, tokenPresent: !!req.cookies.token });
 });

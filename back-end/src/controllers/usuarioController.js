@@ -191,6 +191,10 @@ export const login = async (req, res) => {
 };
 
 export const logout = async (req, res) => {
-  res.clearCookie("token");
-  res.json({ message: "Logout realizado com sucesso." });
+  try {
+    res.clearCookie("token");
+    res.json({ message: "Logout realizado com sucesso." });
+  } catch (error) {
+    res.status(500).json({ message: "Erro no logout", error });
+  }
 };

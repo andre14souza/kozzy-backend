@@ -14,8 +14,6 @@ export const criarArea = async (req, res) => {
   }
 };
 
-//bumbum 
-
 // Listar todas as áreas cadastradas
 export const listarAreas = async (req, res) => {
   try {

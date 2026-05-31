@@ -32,6 +32,10 @@ export const criarAtendimento = async (req, res) => {
     
     const dadosParaSalvar = { ...req.body };
     
+    if (dadosParaSalvar.anexo) {
+      dadosParaSalvar.anexo = limparCaminhoAnexo(dadosParaSalvar.anexo);
+    }
+    
     if (!dadosParaSalvar.numeroProtocolo) {
         dadosParaSalvar.numeroProtocolo = `AUTO-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     }
@@ -82,6 +86,10 @@ export const criarSubChamado = async (req, res) => {
     if (!atendimentoExistente) return res.status(404).json({ message: "Chamado Pai não encontrado" });
 
     const dadosParaSalvar = { ...req.body };
+    
+    if (dadosParaSalvar.anexo) {
+      dadosParaSalvar.anexo = limparCaminhoAnexo(dadosParaSalvar.anexo);
+    }
     
     // Herda as informações do cliente do chamado pai caso não tenham sido enviadas na requisição
     if (!dadosParaSalvar.tipoCliente) {
@@ -418,6 +426,8 @@ export const adicionarComentario = async (req, res) => {
         url: `/uploads/${req.file.filename}`,
         mimetype: req.file.mimetype
       };
+    } else if (req.body.anexo) {
+      novoComentario.anexo = limparCaminhoAnexo(req.body.anexo);
     }
 
     const atendimentoAtualizado = await Atendimento.findByIdAndUpdate(
