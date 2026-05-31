@@ -25,6 +25,11 @@ const usuarioSchema = new mongoose.Schema({
     enum: ["atendente", "supervisor", "Logistica", "Contas a Pagar", "Contas a Receber", "Compras", "T.I", "Comercial"],
     required: true,
   },
+  preferenciaTema: {
+    type: String,
+    enum: ["light", "dark"],
+    default: "light"
+  }
 });
 
 export const Usuario = mongoose.model("Usuario", usuarioSchema);

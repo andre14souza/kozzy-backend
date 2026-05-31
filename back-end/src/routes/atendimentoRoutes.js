@@ -4,9 +4,13 @@ import {
   listarAtendimentos,
   buscarAtendimento,
   atualizarAtendimento,
-  deletarAtendimento
+  deletarAtendimento,
+  adicionarComentario,
+  criarSubChamado,
+  obterEstatisticas
 } from "../controllers/atendimentoController.js";
 import { autenticar } from "../middleware/authMiddleware.js";
+import { upload } from "../middleware/upload.js";
 
 const router = express.Router();
 
@@ -39,6 +43,9 @@ const router = express.Router();
  *                 type: string
  *                 enum: [entregador, cliente_final, loja_estabelecimento]
  *                 example: "cliente_final"
+ *               nomeCliente:
+ *                 type: string
+ *                 example: "João da Bike"
  *               categoriaAssunto:
  *                 type: string
  *                 example: "Problemas de Entrega"
@@ -52,7 +59,21 @@ const router = express.Router();
  *       201:
  *         description: Atendimento criado com sucesso
  */
-router.post("/", autenticar, criarAtendimento);
+/**
+ * @swagger
+ * /api/atendimentos/estatisticas:
+ *   get:
+ *     summary: Retorna estatísticas de atendimentos para o dashboard
+ *     tags: [Atendimentos]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Estatísticas retornadas com sucesso
+ */
+router.get("/estatisticas", autenticar, obterEstatisticas);
+
+router.post("/", autenticar, upload.single('anexo'), criarAtendimento);
 
 /**
  * @swagger
@@ -107,6 +128,8 @@ router.get("/:id", autenticar, buscarAtendimento);
  *             properties:
  *               descricaoDetalhada:
  *                 type: string
+ *               nomeCliente:
+ *                 type: string
  *               avanco:
  *                 type: string
  *                 enum: [aberto, em andamento, concluido]
@@ -133,5 +156,75 @@ router.put("/:id", autenticar, atualizarAtendimento);
  *         description: Atendimento removido
  */
 router.delete("/:id", autenticar, deletarAtendimento);
+
+/**
+ * @swagger
+ * /api/atendimentos/{id}/comentarios:
+ *   post:
+ *     summary: Adiciona um comentário a um atendimento
+ *     tags: [Atendimentos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               mensagem:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Comentário adicionado com sucesso
+ *       400:
+ *         description: É necessário enviar uma mensagem ou um anexo
+ *       404:
+ *         description: Chamado não encontrado
+ */
+router.post("/:id/comentarios", autenticar, upload.single('anexo'), adicionarComentario);
+
+/**
+ * @swagger
+ * /api/atendimentos/{id}/subchamados:
+ *   post:
+ *     summary: Cria um sub-chamado vinculado a um chamado principal
+ *     tags: [Atendimentos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               tipoCliente:
+ *                 type: string
+ *               categoriaAssunto:
+ *                 type: string
+ *               assuntoEspecifico:
+ *                 type: string
+ *               descricaoDetalhada:
+ *                 type: string
+ *               nivelPrioridade:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Sub-chamado criado com sucesso
+ */
+router.post("/:id/subchamados", autenticar, upload.single('anexo'), criarSubChamado);
 
 export default router;

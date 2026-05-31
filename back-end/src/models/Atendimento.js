@@ -7,6 +7,7 @@ const AtendimentoSchema = new mongoose.Schema({
     enum: ["entregador", "vendedor", "cliente", "interno", "supervisor", "gerente"],
     required: true
   },
+  nomeCliente: { type: String, required: false },
   categoriaAssunto: {
     type: String,
     enum: ["Logistica", "Contas a Pagar", "Contas a Receber", "Compras", "T.I", "Comercial"],
@@ -26,6 +27,7 @@ const AtendimentoSchema = new mongoose.Schema({
     enum: ["Baixa Prioridade", "Média Prioridade", "Alta Prioridade", "Urgente"],
     default: "Média Prioridade"
   },
+  dataLimite: { type: Date },
   avanco: {
     type: String,
     enum: ["aberto", "em andamento", "concluido", "encerrado"],
@@ -36,7 +38,27 @@ const AtendimentoSchema = new mongoose.Schema({
   criadoPor: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", required: true },
   atendente: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", default: null },
   dataConclusao: { type: Date },
-  horaConclusao: { type: String }
+  horaConclusao: { type: String },
+  anexo: {
+    nomeOriginal: { type: String },
+    caminho: { type: String },
+    url: { type: String },
+    mimetype: { type: String }
+  },
+  comentarios: [{
+    usuario: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", required: true },
+    mensagem: { type: String },
+    anexo: {
+      nomeOriginal: { type: String },
+      caminho: { type: String },
+      url: { type: String },
+      mimetype: { type: String }
+    },
+    isPrivado: { type: Boolean, default: false },
+    dataCriacao: { type: Date, default: Date.now }
+  }],
+  chamadoPai: { type: mongoose.Schema.Types.ObjectId, ref: "Atendimento", default: null },
+  subChamados: [{ type: mongoose.Schema.Types.ObjectId, ref: "Atendimento" }]
 }, { timestamps: true });
 
 export default mongoose.model("Atendimento", AtendimentoSchema);

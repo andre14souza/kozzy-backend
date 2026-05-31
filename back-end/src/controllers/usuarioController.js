@@ -77,6 +77,17 @@ export const listarUsuarios = async (req, res) => {
   }
 };
 
+export const listarAtendentes = async (req, res) => {
+  try {
+    const atendentes = await Usuario.find({
+      perfilAcesso: { $in: ["atendente", "supervisor"] }
+    }).select("_id nomeCompleto");
+    res.json(atendentes);
+  } catch (error) {
+    res.status(500).json({ message: "Erro ao listar atendentes", error });
+  }
+};
+
 export const buscarUsuario = async (req, res) => {
   try {
     const usuario = await Usuario.findById(req.params.id).select("-senha");
@@ -100,6 +111,35 @@ export const atualizarUsuario = async (req, res) => {
     res.json({ message: "Usuário atualizado com sucesso", usuario });
   } catch (error) {
     res.status(500).json({ message: "Erro ao atualizar usuário", error });
+  }
+};
+
+export const atualizarPerfil = async (req, res) => {
+  try {
+    const { nomeCompleto, nome, email, senha, preferenciaTema } = req.body;
+    const updateData = {};
+    
+    // Suporta tanto o campo nomeCompleto quanto nome
+    if (nomeCompleto) updateData.nomeCompleto = nomeCompleto;
+    if (nome) updateData.nomeCompleto = nome;
+    if (email) updateData.email = email;
+    if (preferenciaTema) updateData.preferenciaTema = preferenciaTema;
+    if (senha) {
+      updateData.senha = await bcrypt.hash(senha, 10);
+    }
+    
+    // O req.usuario.id vem do middleware de autenticação (JWT)
+    const usuarioAtualizado = await Usuario.findByIdAndUpdate(
+      req.usuario.id,
+      updateData,
+      { new: true }
+    ).select("-senha");
+    
+    if (!usuarioAtualizado) return res.status(404).json({ message: "Usuário não encontrado." });
+    
+    res.json({ message: "Perfil atualizado com sucesso", usuario: usuarioAtualizado });
+  } catch (error) {
+    res.status(500).json({ message: "Erro ao atualizar perfil", error });
   }
 };
 
@@ -151,6 +191,10 @@ export const login = async (req, res) => {
 };
 
 export const logout = async (req, res) => {
-  res.clearCookie("token");
-  res.json({ message: "Logout realizado com sucesso." });
+  try {
+    res.clearCookie("token");
+    res.json({ message: "Logout realizado com sucesso." });
+  } catch (error) {
+    res.status(500).json({ message: "Erro no logout", error });
+  }
 };
