@@ -224,3 +224,42 @@ export const logout = async (req, res) => {
     res.status(500).json({ message: "Erro no logout", error });
   }
 };
+
+export const uploadFotoPerfil = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const targetId = id || req.usuario?.id;
+
+    if (!targetId) {
+      return res.status(400).json({ message: "ID do usuário não fornecido." });
+    }
+
+    let foto = "";
+    if (req.file) {
+      foto = `/uploads/${req.file.filename}`;
+    } else if (req.body.foto || req.body.fotoPerfil || req.body.avatar) {
+      foto = limparCaminho(req.body.foto || req.body.fotoPerfil || req.body.avatar);
+    } else {
+      return res.status(400).json({ message: "Nenhuma foto de perfil enviada." });
+    }
+
+    const usuarioAtualizado = await Usuario.findByIdAndUpdate(
+      targetId,
+      { fotoPerfil: foto },
+      { new: true }
+    ).select("-senha");
+
+    if (!usuarioAtualizado) {
+      return res.status(404).json({ message: "Usuário não encontrado." });
+    }
+
+    res.json({
+      message: "Foto de perfil atualizada com sucesso!",
+      usuario: usuarioAtualizado
+    });
+  } catch (error) {
+    console.error("Erro ao atualizar foto de perfil:", error);
+    res.status(500).json({ message: "Erro ao atualizar foto de perfil", error });
+  }
+};
+

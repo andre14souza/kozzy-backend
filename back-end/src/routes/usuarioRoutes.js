@@ -9,8 +9,10 @@ import {
   login,
   logout,
   atualizarPerfil,
+  uploadFotoPerfil,
 } from "../controllers/usuarioController.js";
 import { autenticar } from "../middleware/authMiddleware.js";
+import { upload } from "../middleware/upload.js";
 
 const router = express.Router();
 
@@ -148,7 +150,37 @@ router.get("/:id", autenticar, buscarUsuario);
  *       200:
  *         description: Perfil atualizado
  */
-router.put("/perfil", autenticar, atualizarPerfil);
+router.put("/perfil", autenticar, upload.single("foto"), atualizarPerfil);
+
+/**
+ * @swagger
+ * /api/usuarios/{id}/foto:
+ *   put:
+ *     summary: Faz upload da foto de perfil de um usuário
+ *     tags: [Usuários]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               foto:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Foto de perfil atualizada com sucesso
+ */
+router.put("/:id/foto", autenticar, upload.single("foto"), uploadFotoPerfil);
 
 /**
  * @swagger
@@ -179,7 +211,7 @@ router.put("/perfil", autenticar, atualizarPerfil);
  *       200:
  *         description: Usuário atualizado
  */
-router.put("/:id", autenticar, atualizarUsuario);
+router.put("/:id", autenticar, upload.single("foto"), atualizarUsuario);
 
 /**
  * @swagger
