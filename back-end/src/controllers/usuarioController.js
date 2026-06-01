@@ -35,41 +35,41 @@ export const criarUsuario = async (req, res) => {
     // 2. AUTOMATIZAÇÃO DA ÁREA
     // Se o perfil NÃO for 'supervisor' nem 'atendente', assumimos que o perfil É o nome da área (ex: 'Logistica')
     if (perfilAcesso !== 'supervisor' && perfilAcesso !== 'atendente') {
-        
-        // --- MAPA DE CORREÇÃO ---
-        // Chave (minúsculo) : Valor Correto no Banco (Chamados)
-        const mapaDeAreas = {
-            'logistica': 'Logistica',
-            'logística': 'Logistica',
-            'ti': 'T.I',
-            't.i': 'T.I',
-            't.i.': 'T.I',
-            'financeiro': 'Financeiro',
-            'comercial': 'Comercial',
-            'compras': 'Compra', // Atenção se é "Compra" ou "Compras" no seu banco
-            'compra': 'Compra',
-            'contas a pagar': 'Contas a Pagar',
-            'contas a receber': 'Contas a Receber',
-            'rh': 'RH'
-        };
 
-        // Tenta achar no mapa usando minúsculo. Se não achar, usa o original capitalizado.
-        const termoBusca = perfilAcesso.toLowerCase().trim();
-        
-        let nomeAreaCorreto = mapaDeAreas[termoBusca];
+      // --- MAPA DE CORREÇÃO ---
+      // Chave (minúsculo) : Valor Correto no Banco (Chamados)
+      const mapaDeAreas = {
+        'logistica': 'Logistica',
+        'logística': 'Logistica',
+        'ti': 'T.I',
+        't.i': 'T.I',
+        't.i.': 'T.I',
+        'financeiro': 'Financeiro',
+        'comercial': 'Comercial',
+        'compras': 'Compra', // Atenção se é "Compra" ou "Compras" no seu banco
+        'compra': 'Compra',
+        'contas a pagar': 'Contas a Pagar',
+        'contas a receber': 'Contas a Receber',
+        'rh': 'RH'
+      };
 
-        // Fallback: Se não estiver no mapa, tenta apenas capitalizar a primeira letra
-        if (!nomeAreaCorreto) {
-            nomeAreaCorreto = perfilAcesso.charAt(0).toUpperCase() + perfilAcesso.slice(1);
-        }
+      // Tenta achar no mapa usando minúsculo. Se não achar, usa o original capitalizado.
+      const termoBusca = perfilAcesso.toLowerCase().trim();
 
-        const novaArea = new Area({
-            usuarioId: usuarioSalvo._id,
-            areas: [nomeAreaCorreto] 
-        });
-        
-        await novaArea.save();
-        console.log(`✅ Usuário criado: ${nomeCompleto}. Área vinculada: ${nomeAreaCorreto}`);
+      let nomeAreaCorreto = mapaDeAreas[termoBusca];
+
+      // Fallback: Se não estiver no mapa, tenta apenas capitalizar a primeira letra
+      if (!nomeAreaCorreto) {
+        nomeAreaCorreto = perfilAcesso.charAt(0).toUpperCase() + perfilAcesso.slice(1);
+      }
+
+      const novaArea = new Area({
+        usuarioId: usuarioSalvo._id,
+        areas: [nomeAreaCorreto]
+      });
+
+      await novaArea.save();
+      console.log(`✅ Usuário criado: ${nomeCompleto}. Área vinculada: ${nomeAreaCorreto}`);
     }
 
     res.status(201).json({ message: "Usuário criado com sucesso!", usuario: usuarioSalvo });
@@ -112,12 +112,12 @@ export const buscarUsuario = async (req, res) => {
 export const atualizarUsuario = async (req, res) => {
   try {
     const { nomeCompleto, email, perfilAcesso, fotoPerfil, avatar } = req.body;
-    
+
     const updateData = {};
     if (nomeCompleto !== undefined) updateData.nomeCompleto = nomeCompleto;
     if (email !== undefined) updateData.email = email;
     if (perfilAcesso !== undefined) updateData.perfilAcesso = perfilAcesso;
-    
+
     const foto = req.file ? `/uploads/${req.file.filename}` : (fotoPerfil !== undefined || avatar !== undefined ? limparCaminho(fotoPerfil || avatar) : undefined);
     if (foto !== undefined) {
       updateData.fotoPerfil = foto;
@@ -140,7 +140,7 @@ export const atualizarPerfil = async (req, res) => {
   try {
     const { nomeCompleto, nome, email, senha, preferenciaTema, fotoPerfil, avatar } = req.body;
     const updateData = {};
-    
+
     // Suporta tanto o campo nomeCompleto quanto nome
     if (nomeCompleto) updateData.nomeCompleto = nomeCompleto;
     if (nome) updateData.nomeCompleto = nome;
@@ -149,7 +149,7 @@ export const atualizarPerfil = async (req, res) => {
     if (senha) {
       updateData.senha = await bcrypt.hash(senha, 10);
     }
-    
+
     const foto = req.file ? `/uploads/${req.file.filename}` : (fotoPerfil !== undefined || avatar !== undefined ? limparCaminho(fotoPerfil || avatar) : undefined);
     if (foto !== undefined) {
       updateData.fotoPerfil = foto;
@@ -160,9 +160,9 @@ export const atualizarPerfil = async (req, res) => {
       updateData,
       { new: true }
     ).select("-senha");
-    
+
     if (!usuarioAtualizado) return res.status(404).json({ message: "Usuário não encontrado." });
-    
+
     res.json({ message: "Perfil atualizado com sucesso", usuario: usuarioAtualizado });
   } catch (error) {
     res.status(500).json({ message: "Erro ao atualizar perfil", error });
@@ -198,7 +198,7 @@ export const login = async (req, res) => {
       { expiresIn: "1h" }
     );
 
-   
+
 
     res.json({
       message: "Login realizado com sucesso!",
