@@ -24,6 +24,43 @@ const limparCaminhoAnexo = (anexo) => {
   return anexo;
 };
 
+// Helper: Determina os limites de início (00:00:00) e fim (23:59:59.999) do dia para um determinado fuso horário
+const obterLimitesDiaTimezone = (timeZone = 'America/Sao_Paulo') => {
+  const agora = new Date();
+  
+  // 1. Obtém a data local formatada como YYYY-MM-DD
+  const formatador = new Intl.DateTimeFormat('sv-SE', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const dataLocal = formatador.format(agora);
+
+  // 2. Extrai o fuso horário no formato "+-HH:MM"
+  const formatadorLongOffset = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    timeZoneName: 'longOffset'
+  });
+  const partes = formatadorLongOffset.formatToParts(agora);
+  const tzPart = partes.find(p => p.type === 'timeZoneName')?.value || 'GMT-03:00';
+  
+  let offset = '-03:00';
+  const match = tzPart.match(/GMT([+-]\d+)(?::(\d+))?/);
+  if (match) {
+    const sinal = match[1][0];
+    const horas = match[1].replace(/[+-]/, '').padStart(2, '0');
+    const minutos = (match[2] || '00').padStart(2, '0');
+    offset = `${sinal}${horas}:${minutos}`;
+  }
+
+  // 3. Constrói a data exata de início e fim no fuso horário alvo
+  const startOfDay = new Date(`${dataLocal}T00:00:00.000${offset}`);
+  const endOfDay = new Date(`${dataLocal}T23:59:59.999${offset}`);
+
+  return { startOfDay, endOfDay };
+};
+
 export const criarAtendimento = async (req, res) => {
   try {
     if (req.usuario.perfilAcesso !== 'supervisor' && req.usuario.perfilAcesso !== 'atendente') {
@@ -271,10 +308,7 @@ export const listarAtendimentos = async (req, res) => {
     }
 
     if (apenasHoje === 'true') {
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date();
-      endOfDay.setHours(23, 59, 59, 999);
+      const { startOfDay, endOfDay } = obterLimitesDiaTimezone('America/Sao_Paulo');
       filtroQuery.createdAt = { $gte: startOfDay, $lte: endOfDay };
     }
 
@@ -374,6 +408,76 @@ export const listarAtendimentos = async (req, res) => {
   } catch (error) {
     console.error("ERRO AO LISTAR ATENDIMENTOS:", error);
     res.status(500).json({ message: "Erro ao carregar chamados" });
+  }
+};
+
+export const getChamadosHoje = async (req, res) => {
+  try {
+    const { id, perfilAcesso } = req.usuario;
+
+    // Obtém limites em fuso horário de Brasília (America/Sao_Paulo)
+    const { startOfDay, endOfDay } = obterLimitesDiaTimezone('America/Sao_Paulo');
+
+    let filtroQuery = {
+      createdAt: { $gte: startOfDay, $lte: endOfDay },
+      chamadoPai: null // Apenas chamados principais por padrão
+    };
+
+    // ─── Regra estrita de segurança (controlo de acesso por área) ─────────
+    if (perfilAcesso !== 'supervisor' && perfilAcesso !== 'atendente') {
+      const areaVinculada = await Area.findOne({ usuarioId: id });
+
+      if (!areaVinculada || !areaVinculada.areas || areaVinculada.areas.length === 0) {
+        return res.json([]);
+      }
+
+      filtroQuery.categoriaAssunto = { $in: areaVinculada.areas };
+    }
+
+    const atendimentos = await Atendimento.find(filtroQuery)
+      .populate('criadoPor', 'nomeCompleto email')
+      .populate('atendente', 'nomeCompleto')
+      .populate('comentarios.usuario', 'nomeCompleto')
+      .populate('subChamados')
+      .sort({ createdAt: -1 });
+
+    const atendimentosProcessados = atendimentos.map(atd => {
+      const obj = atd.toObject();
+      
+      if (!obj.criadoPor) {
+        obj.criadoPor = { nomeCompleto: 'Usuário Removido', email: 'removido@sistema' };
+      }
+      
+      if (obj.comentarios && Array.isArray(obj.comentarios)) {
+        obj.comentarios = obj.comentarios.filter(c => {
+          if (!c.isPrivado) return true;
+          const ehSupervisor = req.usuario.perfilAcesso === 'supervisor';
+          const atendenteId = obj.atendente ? (obj.atendente._id ? obj.atendente._id.toString() : obj.atendente.toString()) : null;
+          const ehAtendente = atendenteId === req.usuario.id;
+          return ehSupervisor || ehAtendente;
+        }).map(c => {
+          if (!c.usuario) {
+            c.usuario = { nomeCompleto: 'Usuário Removido' };
+          }
+          return c;
+        });
+      }
+      
+      if (obj.anexo) obj.anexo = limparCaminhoAnexo(obj.anexo);
+      if (obj.comentarios) {
+        obj.comentarios = obj.comentarios.map(c => {
+          if (c.anexo) c.anexo = limparCaminhoAnexo(c.anexo);
+          return c;
+        });
+      }
+
+      return obj;
+    });
+
+    res.json(Array.isArray(atendimentosProcessados) ? atendimentosProcessados : []);
+  } catch (error) {
+    console.error("ERRO AO LISTAR ATENDIMENTOS DE HOJE:", error);
+    res.status(500).json({ message: "Erro ao carregar chamados de hoje" });
   }
 };
 

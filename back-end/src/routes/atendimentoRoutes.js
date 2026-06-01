@@ -7,7 +7,8 @@ import {
   deletarAtendimento,
   adicionarComentario,
   criarSubChamado,
-  obterEstatisticas
+  obterEstatisticas,
+  getChamadosHoje
 } from "../controllers/atendimentoController.js";
 import { autenticar } from "../middleware/authMiddleware.js";
 import { upload } from "../middleware/upload.js";
@@ -88,6 +89,20 @@ router.post("/", autenticar, upload.single('anexo'), criarAtendimento);
  *         description: Lista retornada com sucesso
  */
 router.get("/", autenticar, listarAtendimentos);
+
+/**
+ * @swagger
+ * /api/atendimentos/hoje:
+ *   get:
+ *     summary: Lista apenas os chamados criados hoje (com base no fuso horário local de Brasília)
+ *     tags: [Atendimentos]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de chamados de hoje retornada com sucesso
+ */
+router.get("/hoje", autenticar, getChamadosHoje);
 
 /**
  * @swagger
