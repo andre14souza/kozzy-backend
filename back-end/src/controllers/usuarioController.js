@@ -208,6 +208,7 @@ export const login = async (req, res) => {
         nomeCompleto: usuario.nomeCompleto,
         email: usuario.email,
         perfilAcesso: usuario.perfilAcesso,
+        fotoPerfil: usuario.fotoPerfil, // <--- ADICIONE ESTA LINHA EXATAMENTE AQUI!
         areas: listaAreas // <--- 3. ENVIAR AS ÁREAS PARA O FRONT
       },
     });
