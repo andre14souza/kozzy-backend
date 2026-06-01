@@ -18,10 +18,9 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    // Ex: avatar-1616...434.png
-    const ext = path.extname(file.originalname);
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + "-" + uniqueSuffix + ext);
+    // Ex: 1716164340000-avatar.png
+    const cleanOriginalName = file.originalname.replace(/\s+/g, "_");
+    cb(null, Date.now() + "-" + cleanOriginalName);
   },
 });
 
