@@ -22,9 +22,14 @@ app.set('trust proxy', 1);
 app.use(cookieParser());
 // Middlewares
 app.use(cors({
-  origin: [/vercel.app$/], // Isso aceita qualquer link que termine em .vercel.app
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: [
+    /vercel\.app$/,
+    'http://localhost:4200',
+    'http://localhost:3000'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 
 app.use(express.json());
