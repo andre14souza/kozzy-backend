@@ -78,7 +78,7 @@ export const criarAtendimento = async (req, res) => {
     }
 
     // Garante que se o atendente vier vazio, é o próprio criador
-    if (!dadosParaSalvar.atendente) {
+    if (!dadosParaSalvar.atendente || dadosParaSalvar.atendente === "null" || dadosParaSalvar.atendente === "") {
         dadosParaSalvar.atendente = req.usuario.id;
     }
 
@@ -141,7 +141,7 @@ export const criarSubChamado = async (req, res) => {
         dadosParaSalvar.numeroProtocolo = `${atendimentoExistente.numeroProtocolo}-SUB-${Math.floor(Math.random() * 1000)}`;
     }
 
-    if (!dadosParaSalvar.atendente) {
+    if (!dadosParaSalvar.atendente || dadosParaSalvar.atendente === "null" || dadosParaSalvar.atendente === "") {
         dadosParaSalvar.atendente = req.usuario.id;
     }
 
@@ -206,7 +206,17 @@ export const atualizarAtendimento = async (req, res) => {
       dadosFormatados.nivelPrioridade = prioridadeRaw;
     }
 
-    if (d.status || d.avanco) dadosFormatados.avanco = d.status || d.avanco;
+    if (d.status || d.avanco) {
+      let avancoRaw = (d.status || d.avanco).trim().toLowerCase();
+      // Normalização para valores do Schema
+      if (avancoRaw === 'fechado' || avancoRaw === 'concluido') avancoRaw = 'concluido';
+      else if (avancoRaw === 'em-andamento' || avancoRaw === 'em andamento') avancoRaw = 'em andamento';
+      
+      const statusPermitidos = ["aberto", "em andamento", "concluido", "encerrado"];
+      if (statusPermitidos.includes(avancoRaw)) {
+        dadosFormatados.avanco = avancoRaw;
+      }
+    }
     
     if (d.atendente !== undefined) dadosFormatados.atendente = d.atendente || null;
     if (d.solucao !== undefined) dadosFormatados.solucao = d.solucao;
@@ -230,9 +240,15 @@ export const atualizarAtendimento = async (req, res) => {
     const ehAtendenteResponsavel = atendimentoExistente.atendente && atendimentoExistente.atendente.toString() === req.usuario.id.toString();
     const ehCriador = atendimentoExistente.criadoPor && atendimentoExistente.criadoPor.toString() === req.usuario.id.toString();
     const estaAssumindo = !atendimentoExistente.atendente && dadosFormatados.atendente === req.usuario.id;
+    const semAtendente = !atendimentoExistente.atendente;
 
-    if (!ehSupervisor && !ehAtendenteResponsavel && !ehCriador && !estaAssumindo) {
+    if (!ehSupervisor && !ehAtendenteResponsavel && !ehCriador && !estaAssumindo && !semAtendente) {
       return res.status(403).json({ message: "Acesso negado. Apenas o supervisor, o criador ou o atendente responsável podem editar este chamado." });
+    }
+
+    // Se o chamado não tiver atendente e o usuário logado for um atendente, associa automaticamente ao assumir/editar
+    if (!atendimentoExistente.atendente && req.usuario.perfilAcesso === 'atendente') {
+      dadosFormatados.atendente = req.usuario.id;
     }
 
     // Recalcula o SLA apenas se a prioridade foi alterada
