@@ -511,9 +511,29 @@ export const buscarAtendimento = async (req, res) => {
 export const deletarAtendimento = async (req, res) => {
   try {
     if (req.usuario.perfilAcesso !== 'supervisor') return res.status(403).json({ message: "Acesso negado." });
-    await Atendimento.findByIdAndDelete(req.params.id);
+    const { id } = req.params;
+    
+    const chamado = await Atendimento.findById(id);
+    if (!chamado) return res.status(404).json({ message: "Chamado não encontrado" });
+
+    // 1. Se tiver sub-chamados, deleta todos eles (Cascata)
+    if (chamado.subChamados && chamado.subChamados.length > 0) {
+      await Atendimento.deleteMany({ _id: { $in: chamado.subChamados } });
+    }
+
+    // 2. Se este chamado for um sub-chamado, remove a referência dele no pai
+    if (chamado.chamadoPai) {
+      await Atendimento.findByIdAndUpdate(chamado.chamadoPai, {
+        $pull: { subChamados: id }
+      });
+    }
+
+    // 3. Deleta o chamado principal
+    await Atendimento.findByIdAndDelete(id);
+    
     res.json({ message: "Chamado deletado com sucesso" });
   } catch (error) {
+    console.error("ERRO AO EXCLUIR ATENDIMENTO:", error);
     res.status(500).json({ message: "Erro ao deletar chamado" });
   }
 };
