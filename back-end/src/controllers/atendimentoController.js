@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Atendimento from "../models/Atendimento.js";
 import Area from "../models/Area.js";
 
@@ -218,7 +219,13 @@ export const atualizarAtendimento = async (req, res) => {
       }
     }
     
-    if (d.atendente !== undefined) dadosFormatados.atendente = d.atendente || null;
+    if (d.atendente !== undefined) {
+      if (!d.atendente || d.atendente === "null" || d.atendente === "" || d.atendente === "Não Atribuído") {
+        dadosFormatados.atendente = null;
+      } else if (mongoose.Types.ObjectId.isValid(d.atendente)) {
+        dadosFormatados.atendente = d.atendente;
+      }
+    }
     if (d.solucao !== undefined) dadosFormatados.solucao = d.solucao;
     if (d.origem !== undefined) dadosFormatados.origem = d.origem;
     if (req.file) {
