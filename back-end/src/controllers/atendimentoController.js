@@ -220,11 +220,18 @@ export const atualizarAtendimento = async (req, res) => {
     }
     
     if (d.atendente !== undefined) {
-      if (!d.atendente || d.atendente === "null" || d.atendente === "" || d.atendente === "Não Atribuído") {
-        dadosFormatados.atendente = null;
-      } else if (mongoose.Types.ObjectId.isValid(d.atendente)) {
-        dadosFormatados.atendente = d.atendente;
+      // O frontend pode enviar o atendente como string (ID ou nome) ou objeto {_id, nomeCompleto}.
+      // Normalizamos para extrair sempre o ID correto.
+      let atendenteId = d.atendente;
+      if (atendenteId && typeof atendenteId === 'object') {
+        atendenteId = atendenteId._id || atendenteId.id;
       }
+      if (!atendenteId || atendenteId === "null" || atendenteId === "" || atendenteId === "Não Atribuído") {
+        dadosFormatados.atendente = null;
+      } else if (mongoose.Types.ObjectId.isValid(atendenteId)) {
+        dadosFormatados.atendente = atendenteId;
+      }
+      // Se atendenteId for uma string de nome inválida (ex: "Nathalia Adorno"), ignora sem alterar o banco.
     }
     if (d.solucao !== undefined) dadosFormatados.solucao = d.solucao;
     if (d.origem !== undefined) dadosFormatados.origem = d.origem;
@@ -244,13 +251,16 @@ export const atualizarAtendimento = async (req, res) => {
 
     // ✅ VERIFICAÇÃO DE PERMISSÃO PARA EDIÇÃO
     const ehSupervisor = req.usuario.perfilAcesso === 'supervisor';
+    const ehAtendente = req.usuario.perfilAcesso === 'atendente';
     const ehAtendenteResponsavel = atendimentoExistente.atendente && atendimentoExistente.atendente.toString() === req.usuario.id.toString();
     const ehCriador = atendimentoExistente.criadoPor && atendimentoExistente.criadoPor.toString() === req.usuario.id.toString();
     const estaAssumindo = !atendimentoExistente.atendente && dadosFormatados.atendente === req.usuario.id;
     const semAtendente = !atendimentoExistente.atendente;
 
-    if (!ehSupervisor && !ehAtendenteResponsavel && !ehCriador && !estaAssumindo && !semAtendente) {
-      return res.status(403).json({ message: "Acesso negado. Apenas o supervisor, o criador ou o atendente responsável podem editar este chamado." });
+    // Atendentes podem atualizar qualquer chamado que consigam ver (necessário para o Kanban).
+    // Usuários de área específica só podem editar os seus próprios ou sem atendente.
+    if (!ehSupervisor && !ehAtendente && !ehAtendenteResponsavel && !ehCriador && !estaAssumindo && !semAtendente) {
+      return res.status(403).json({ message: "Acesso negado. Apenas o supervisor, atendentes, o criador ou o atendente responsável podem editar este chamado." });
     }
 
     // Se o chamado não tiver atendente e o usuário logado for um atendente, associa automaticamente ao assumir/editar
