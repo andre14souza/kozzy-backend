@@ -620,7 +620,7 @@ export const adicionarComentario = async (req, res) => {
     const { id } = req.params;
     const { mensagem, isPrivado } = req.body;
 
-    if (!mensagem && !req.file) {
+    if (!mensagem && !req.file && (!req.files || req.files.length === 0)) {
       return res.status(400).json({ message: "É necessário enviar uma mensagem ou um anexo." });
     }
 
@@ -630,13 +630,10 @@ export const adicionarComentario = async (req, res) => {
       isPrivado: isPrivado === true || isPrivado === 'true'
     };
 
-    if (req.file) {
-      novoComentario.anexo = {
-        nomeOriginal: req.file.originalname,
-        caminho: `/uploads/${req.file.filename}`,
-        url: `/uploads/${req.file.filename}`,
-        mimetype: req.file.mimetype
-      };
+    // Suporta req.files (array) e req.file (single) para compatibilidade
+    const primeiroArquivo = (req.files && req.files.length > 0) ? req.files[0] : req.file;
+    if (primeiroArquivo) {
+      novoComentario.anexo = getFileInfo(primeiroArquivo);
     } else if (req.body.anexo) {
       novoComentario.anexo = limparCaminhoAnexo(req.body.anexo);
     }
