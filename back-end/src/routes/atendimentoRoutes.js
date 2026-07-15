@@ -74,7 +74,7 @@ const router = express.Router();
  */
 router.get("/estatisticas", autenticar, obterEstatisticas);
 
-router.post("/", autenticar, upload.single('anexo'), criarAtendimento);
+router.post("/", autenticar, upload.array('anexos', 10), criarAtendimento);
 
 /**
  * @swagger
@@ -203,7 +203,7 @@ router.delete("/:id", autenticar, deletarAtendimento);
  *       404:
  *         description: Chamado não encontrado
  */
-router.post("/:id/comentarios", autenticar, upload.single('anexo'), adicionarComentario);
+router.post("/:id/comentarios", autenticar, upload.array('anexos', 10), adicionarComentario);
 
 /**
  * @swagger
@@ -240,6 +240,6 @@ router.post("/:id/comentarios", autenticar, upload.single('anexo'), adicionarCom
  *       201:
  *         description: Sub-chamado criado com sucesso
  */
-router.post("/:id/subchamados", autenticar, upload.single('anexo'), criarSubChamado);
+router.post("/:id/subchamados", autenticar, upload.array('anexos', 10), criarSubChamado);
 
 export default router;

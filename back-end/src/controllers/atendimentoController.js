@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 import Atendimento from "../models/Atendimento.js";
 import Area from "../models/Area.js";
+import { emitToAll, emitToRoom } from "../socketManager.js";
+import { getFileInfo } from "../middleware/upload.js";
 
 const calcularDataLimite = (prioridade) => {
   const horas = {
@@ -16,8 +18,11 @@ const calcularDataLimite = (prioridade) => {
 };
 
 // Helper: Limpa caminhos de ficheiros guardados no banco para o formato padrão /uploads/nome
+// Para URLs do Cloudinary (http...) não faz nada, apenas retorna o objeto intacto.
 const limparCaminhoAnexo = (anexo) => {
   if (!anexo || !anexo.caminho) return anexo;
+  // Se já for uma URL completa (Cloudinary), retorna sem modificar
+  if (anexo.caminho.startsWith('http') || (anexo.url && anexo.url.startsWith('http'))) return anexo;
   // Extrai apenas o nome do arquivo, prevenindo caminhos absolutos como C:\... ou /home/...
   const nomeArquivo = anexo.caminho.split(/[\\/]/).pop();
   anexo.caminho = `/uploads/${nomeArquivo}`;
@@ -85,13 +90,12 @@ export const criarAtendimento = async (req, res) => {
 
     dadosParaSalvar.dataLimite = calcularDataLimite(dadosParaSalvar.nivelPrioridade || 'Média Prioridade');
 
-    if (req.file) {
-      dadosParaSalvar.anexo = {
-        nomeOriginal: req.file.originalname,
-        caminho: `/uploads/${req.file.filename}`,
-        url: `/uploads/${req.file.filename}`, // Para o frontend usar caminho relativo
-        mimetype: req.file.mimetype
-      };
+    // Suporte a múltiplos arquivos (req.files) e compatibilidade com req.file
+    const arquivos = req.files && req.files.length > 0 ? req.files : (req.file ? [req.file] : []);
+    if (arquivos.length > 0) {
+      dadosParaSalvar.anexos = arquivos.map(f => getFileInfo(f));
+      // Retrocompatibilidade: mantém o campo anexo com o primeiro arquivo
+      dadosParaSalvar.anexo = dadosParaSalvar.anexos[0];
     }
 
     const novoAtendimento = new Atendimento({ ...dadosParaSalvar, criadoPor: req.usuario.id });
@@ -106,6 +110,21 @@ export const criarAtendimento = async (req, res) => {
       .populate('criadoPor', 'nomeCompleto')
       .populate('atendente', 'nomeCompleto')
       .populate('comentarios.usuario', 'nomeCompleto');
+
+    // 🔔 Socket.io: Notifica todos os clientes sobre o novo chamado
+    emitToAll('chamado:novo', populado);
+
+    // 🔔 Socket.io: Notificação pessoal para o atendente responsável
+    const atendenteId = dadosParaSalvar.atendente || req.usuario.id;
+    if (atendenteId) {
+      emitToRoom(`user:${atendenteId}`, 'notificacao:nova', {
+        tipo: 'chamado_criado',
+        mensagem: `Novo chamado atribuído a você: #${populado.numeroProtocolo}`,
+        chamadoId: populado._id,
+        chamado: populado,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     res.status(201).json(populado);
   } catch (error) {
@@ -149,13 +168,11 @@ export const criarSubChamado = async (req, res) => {
     dadosParaSalvar.dataLimite = calcularDataLimite(dadosParaSalvar.nivelPrioridade || 'Média Prioridade');
     dadosParaSalvar.chamadoPai = paiId;
 
-    if (req.file) {
-      dadosParaSalvar.anexo = {
-        nomeOriginal: req.file.originalname,
-        caminho: `/uploads/${req.file.filename}`,
-        url: `/uploads/${req.file.filename}`,
-        mimetype: req.file.mimetype
-      };
+    // Suporte a múltiplos arquivos
+    const arquivos = req.files && req.files.length > 0 ? req.files : (req.file ? [req.file] : []);
+    if (arquivos.length > 0) {
+      dadosParaSalvar.anexos = arquivos.map(f => getFileInfo(f));
+      dadosParaSalvar.anexo = dadosParaSalvar.anexos[0];
     }
 
     const novoSubChamado = new Atendimento({ ...dadosParaSalvar, criadoPor: req.usuario.id });
@@ -168,6 +185,9 @@ export const criarSubChamado = async (req, res) => {
       .populate('criadoPor', 'nomeCompleto')
       .populate('atendente', 'nomeCompleto')
       .populate('comentarios.usuario', 'nomeCompleto');
+
+    // 🔔 Socket.io: Notifica todos sobre o novo sub-chamado
+    emitToAll('chamado:novo', populado);
 
     res.status(201).json(populado);
   } catch (error) {
@@ -235,13 +255,13 @@ export const atualizarAtendimento = async (req, res) => {
     }
     if (d.solucao !== undefined) dadosFormatados.solucao = d.solucao;
     if (d.origem !== undefined) dadosFormatados.origem = d.origem;
-    if (req.file) {
-      dadosFormatados.anexo = {
-        nomeOriginal: req.file.originalname,
-        caminho: `/uploads/${req.file.filename}`,
-        url: `/uploads/${req.file.filename}`,
-        mimetype: req.file.mimetype
-      };
+    // Suporte a múltiplos arquivos no update
+    const arquivosUpdate = req.files && req.files.length > 0 ? req.files : (req.file ? [req.file] : []);
+    if (arquivosUpdate.length > 0) {
+      const novosAnexos = arquivosUpdate.map(f => getFileInfo(f));
+      // Adiciona aos anexos existentes via $push no banco, mas aqui usamos $set — empilhamos manualmente
+      dadosFormatados.$push = { anexos: { $each: novosAnexos } };
+      dadosFormatados.anexo = novosAnexos[0]; // retrocompatibilidade
     } else if (d.anexo !== undefined) {
       dadosFormatados.anexo = d.anexo ? limparCaminhoAnexo(d.anexo) : null;
     }
@@ -276,9 +296,16 @@ export const atualizarAtendimento = async (req, res) => {
     // ✅ CORREÇÃO: Utiliza o $set com os dados formatados limpos
     // Isto garante que não interferimos com a estrutura de árvore do Composite (chamadoPai/subChamados)
     // caso não sejam enviados na request.
+    // Separa $push de $set para não conflitar
+    const pushOp = dadosFormatados.$push;
+    delete dadosFormatados.$push;
+
+    const updateOp = { $set: dadosFormatados };
+    if (pushOp) updateOp.$push = pushOp;
+
     const atualizado = await Atendimento.findByIdAndUpdate(
       id,
-      { $set: dadosFormatados }, 
+      updateOp,
       { new: true }
     )
       .populate('criadoPor', 'nomeCompleto')
@@ -287,6 +314,21 @@ export const atualizarAtendimento = async (req, res) => {
       .populate('subChamados', 'numeroProtocolo assuntoEspecifico avanco nivelPrioridade');
     
     if (!atualizado) return res.status(404).json({ message: "Chamado não encontrado" });
+
+    // 🔔 Socket.io: Notifica todos sobre a atualização
+    emitToAll('chamado:atualizado', atualizado);
+
+    // 🔔 Notificação pessoal para o atendente responsável
+    const atendenteAtualizado = atualizado.atendente ? atualizado.atendente._id || atualizado.atendente : null;
+    if (atendenteAtualizado) {
+      emitToRoom(`user:${atendenteAtualizado}`, 'notificacao:nova', {
+        tipo: 'chamado_atualizado',
+        mensagem: `Chamado #${atualizado.numeroProtocolo} foi atualizado`,
+        chamadoId: atualizado._id,
+        chamado: atualizado,
+        timestamp: new Date().toISOString()
+      });
+    }
     
     res.json(atualizado);
   } catch (error) {
@@ -415,6 +457,7 @@ export const listarAtendimentos = async (req, res) => {
       
       // Normaliza caminhos de anexos para registos antigos
       if (obj.anexo) obj.anexo = limparCaminhoAnexo(obj.anexo);
+      if (obj.anexos) obj.anexos = obj.anexos.map(limparCaminhoAnexo);
       if (obj.comentarios) {
         obj.comentarios = obj.comentarios.map(c => {
           if (c.anexo) c.anexo = limparCaminhoAnexo(c.anexo);
@@ -528,6 +571,7 @@ export const buscarAtendimento = async (req, res) => {
 
     // Normaliza caminhos de anexos para registos antigos
     if (atdObj.anexo) atdObj.anexo = limparCaminhoAnexo(atdObj.anexo);
+    if (atdObj.anexos) atdObj.anexos = atdObj.anexos.map(limparCaminhoAnexo);
     if (atdObj.comentarios) {
       atdObj.comentarios = atdObj.comentarios.map(c => {
         if (c.anexo) c.anexo = limparCaminhoAnexo(c.anexo);

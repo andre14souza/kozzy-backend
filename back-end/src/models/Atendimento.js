@@ -1,5 +1,13 @@
 import mongoose from "mongoose";
 
+// Schema reutilizável para um único anexo
+const AnexoSchema = new mongoose.Schema({
+  nomeOriginal: { type: String },
+  caminho: { type: String },
+  url: { type: String },
+  mimetype: { type: String }
+}, { _id: false });
+
 const AtendimentoSchema = new mongoose.Schema({
   numeroProtocolo: { type: String, required: true, unique: true },
   tipoCliente: {
@@ -13,7 +21,6 @@ const AtendimentoSchema = new mongoose.Schema({
     enum: ["Logistica", "Contas a Pagar", "Contas a Receber", "Compras", "T.I", "Comercial"],
     required: true
   },
-  // ✅ CORREÇÃO: Coluna do Assunto adicionada! Sem isto o banco não guarda nada.
   assuntoEspecifico: { 
     type: String, 
     required: true 
@@ -33,27 +40,19 @@ const AtendimentoSchema = new mongoose.Schema({
     enum: ["aberto", "em andamento", "concluido", "encerrado"],
     default: "aberto"
   },
-  // ✅ CORREÇÃO: Coluna de solução garantida aqui
   solucao: { type: String, default: "" }, 
   criadoPor: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", required: true },
   atendente: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", default: null },
   dataConclusao: { type: Date },
   horaConclusao: { type: String },
-  anexo: {
-    nomeOriginal: { type: String },
-    caminho: { type: String },
-    url: { type: String },
-    mimetype: { type: String }
-  },
+  // Campo legado (compatibilidade com registros antigos)
+  anexo: AnexoSchema,
+  // NOVO: múltiplos anexos por chamado
+  anexos: { type: [AnexoSchema], default: [] },
   comentarios: [{
     usuario: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", required: true },
     mensagem: { type: String },
-    anexo: {
-      nomeOriginal: { type: String },
-      caminho: { type: String },
-      url: { type: String },
-      mimetype: { type: String }
-    },
+    anexo: AnexoSchema,
     isPrivado: { type: Boolean, default: false },
     dataCriacao: { type: Date, default: Date.now }
   }],
@@ -61,4 +60,4 @@ const AtendimentoSchema = new mongoose.Schema({
   subChamados: [{ type: mongoose.Schema.Types.ObjectId, ref: "Atendimento" }]
 }, { timestamps: true });
 
-export default mongoose.model("Atendimento", AtendimentoSchema);
+export default mongoose.model("Atendimento", AtendimentoSchema);
