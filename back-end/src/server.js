@@ -11,6 +11,7 @@ import { connectDB } from "./config/db.js";
 import usuarioRoutes from "./routes/usuarioRoutes.js";
 import atendimentoRoutes from "./routes/atendimentoRoutes.js";
 import areaRoutes from "./routes/areaRoutes.js";
+import chatRoutes from "./routes/chatRoutes.js";
 import { swaggerDocs } from "./swagger.js";
 import { setIO } from "./socketManager.js";
 
@@ -46,11 +47,34 @@ setIO(io);
 io.on('connection', (socket) => {
   console.log(`[Socket.io] Cliente conectado: ${socket.id}`);
 
-  // Permite que o cliente entre em salas por userId (para notificações pessoais)
+  // Permite que o cliente entre em salas por userId (para notificações pessoais e chat direto)
   socket.on('join:user', (userId) => {
     if (userId) {
       socket.join(`user:${userId}`);
       console.log(`[Socket.io] Socket ${socket.id} entrou na sala user:${userId}`);
+    }
+  });
+
+  // Permite que o cliente entre na sala do canal geral do chat
+  socket.on('join:chat_geral', () => {
+    socket.join('chat:geral');
+    console.log(`[Socket.io] Socket ${socket.id} entrou na sala chat:geral`);
+  });
+
+  // Indicador de digitação
+  socket.on('chat:digitando', (dados) => {
+    if (dados?.tipoCanal === 'geral') {
+      socket.to('chat:geral').emit('chat:digitando', dados);
+    } else if (dados?.destinatarioId) {
+      socket.to(`user:${dados.destinatarioId}`).emit('chat:digitando', dados);
+    }
+  });
+
+  socket.on('chat:parou_digitar', (dados) => {
+    if (dados?.tipoCanal === 'geral') {
+      socket.to('chat:geral').emit('chat:parou_digitar', dados);
+    } else if (dados?.destinatarioId) {
+      socket.to(`user:${dados.destinatarioId}`).emit('chat:parou_digitar', dados);
     }
   });
 
@@ -89,6 +113,7 @@ app.get('/api/test-cookie', (req, res) => {
 app.use("/api/usuarios", usuarioRoutes);
 app.use("/api/atendimentos", atendimentoRoutes);
 app.use("/api/areas", areaRoutes);
+app.use("/api/chat", chatRoutes);
 
 // Conexão ao banco
 connectDB();

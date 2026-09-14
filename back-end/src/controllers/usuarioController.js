@@ -138,15 +138,50 @@ export const atualizarUsuario = async (req, res) => {
 
 export const atualizarPerfil = async (req, res) => {
   try {
-    const { nomeCompleto, nome, email, senha, preferenciaTema, fotoPerfil, avatar } = req.body;
+    const {
+      nomeCompleto,
+      nome,
+      email,
+      senha,
+      senhaAntiga,
+      preferenciaTema,
+      fotoPerfil,
+      avatar,
+      telefone,
+      cargo,
+      departamento,
+      biografia,
+      notificacoesEmail,
+      notificacoesSons,
+      statusPresenca
+    } = req.body;
+
+    const usuarioExistente = await Usuario.findById(req.usuario.id);
+    if (!usuarioExistente) return res.status(404).json({ message: "Usuário não encontrado." });
+
     const updateData = {};
 
-    // Suporta tanto o campo nomeCompleto quanto nome
-    if (nomeCompleto) updateData.nomeCompleto = nomeCompleto;
-    if (nome) updateData.nomeCompleto = nome;
-    if (email) updateData.email = email;
-    if (preferenciaTema) updateData.preferenciaTema = preferenciaTema;
-    if (senha) {
+    // Suporta tanto nomeCompleto quanto nome
+    if (nomeCompleto !== undefined) updateData.nomeCompleto = nomeCompleto;
+    if (nome !== undefined) updateData.nomeCompleto = nome;
+    if (email !== undefined) updateData.email = email;
+    if (preferenciaTema !== undefined) updateData.preferenciaTema = preferenciaTema;
+    if (telefone !== undefined) updateData.telefone = telefone;
+    if (cargo !== undefined) updateData.cargo = cargo;
+    if (departamento !== undefined) updateData.departamento = departamento;
+    if (biografia !== undefined) updateData.biografia = biografia;
+    if (notificacoesEmail !== undefined) updateData.notificacoesEmail = notificacoesEmail === true || notificacoesEmail === 'true';
+    if (notificacoesSons !== undefined) updateData.notificacoesSons = notificacoesSons === true || notificacoesSons === 'true';
+    if (statusPresenca !== undefined) updateData.statusPresenca = statusPresenca;
+
+    // Se informou nova senha
+    if (senha && senha.trim() !== '') {
+      if (senhaAntiga) {
+        const senhaCorreta = await bcrypt.compare(senhaAntiga, usuarioExistente.senha);
+        if (!senhaCorreta) {
+          return res.status(400).json({ message: "A senha atual informada está incorreta." });
+        }
+      }
       updateData.senha = await bcrypt.hash(senha, 10);
     }
 
@@ -154,17 +189,27 @@ export const atualizarPerfil = async (req, res) => {
     if (foto !== undefined) {
       updateData.fotoPerfil = foto;
     }
-    // O req.usuario.id vem do middleware de autenticação (JWT)
+
     const usuarioAtualizado = await Usuario.findByIdAndUpdate(
       req.usuario.id,
       updateData,
       { new: true }
     ).select("-senha");
 
-    if (!usuarioAtualizado) return res.status(404).json({ message: "Usuário não encontrado." });
+    // Buscar áreas vinculadas
+    const areaVinculada = await Area.findOne({ usuarioId: usuarioAtualizado._id });
+    const listaAreas = areaVinculada ? areaVinculada.areas : [];
 
-    res.json({ message: "Perfil atualizado com sucesso", usuario: usuarioAtualizado });
+    const usuarioRetorno = usuarioAtualizado.toObject();
+    usuarioRetorno.areas = listaAreas;
+    usuarioRetorno.id = usuarioAtualizado._id;
+
+    res.json({
+      message: "Perfil atualizado com sucesso",
+      usuario: usuarioRetorno
+    });
   } catch (error) {
+    console.error("Erro ao atualizar perfil:", error);
     res.status(500).json({ message: "Erro ao atualizar perfil", error });
   }
 };
@@ -195,10 +240,8 @@ export const login = async (req, res) => {
     const token = jwt.sign(
       { id: usuario._id, perfilAcesso: usuario.perfilAcesso },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "7d" }
     );
-
-
 
     res.json({
       message: "Login realizado com sucesso!",
@@ -208,8 +251,16 @@ export const login = async (req, res) => {
         nomeCompleto: usuario.nomeCompleto,
         email: usuario.email,
         perfilAcesso: usuario.perfilAcesso,
-        fotoPerfil: usuario.fotoPerfil, // <--- ADICIONE ESTA LINHA EXATAMENTE AQUI!
-        areas: listaAreas // <--- 3. ENVIAR AS ÁREAS PARA O FRONT
+        fotoPerfil: usuario.fotoPerfil || "",
+        telefone: usuario.telefone || "",
+        cargo: usuario.cargo || "",
+        departamento: usuario.departamento || "",
+        biografia: usuario.biografia || "",
+        notificacoesEmail: usuario.notificacoesEmail ?? true,
+        notificacoesSons: usuario.notificacoesSons ?? true,
+        preferenciaTema: usuario.preferenciaTema || "light",
+        statusPresenca: usuario.statusPresenca || "online",
+        areas: listaAreas
       },
     });
   } catch (error) {
@@ -256,7 +307,10 @@ export const uploadFotoPerfil = async (req, res) => {
 
     res.json({
       message: "Foto de perfil atualizada com sucesso!",
-      usuario: usuarioAtualizado
+      usuario: {
+        ...usuarioAtualizado.toObject(),
+        id: usuarioAtualizado._id
+      }
     });
   } catch (error) {
     console.error("Erro ao atualizar foto de perfil:", error);

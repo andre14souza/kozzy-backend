@@ -33,7 +33,36 @@ const usuarioSchema = new mongoose.Schema({
   fotoPerfil: {
     type: String,
     default: ""
+  },
+  telefone: {
+    type: String,
+    default: ""
+  },
+  cargo: {
+    type: String,
+    default: ""
+  },
+  departamento: {
+    type: String,
+    default: ""
+  },
+  biografia: {
+    type: String,
+    default: ""
+  },
+  notificacoesEmail: {
+    type: Boolean,
+    default: true
+  },
+  notificacoesSons: {
+    type: Boolean,
+    default: true
+  },
+  statusPresenca: {
+    type: String,
+    enum: ["online", "ausente", "ocupado", "offline"],
+    default: "online"
   }
-});
+}, { timestamps: true });
 
 export const Usuario = mongoose.model("Usuario", usuarioSchema);

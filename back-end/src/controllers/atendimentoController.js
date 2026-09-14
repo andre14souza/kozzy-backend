@@ -114,15 +114,23 @@ export const criarAtendimento = async (req, res) => {
     // 🔔 Socket.io: Notifica todos os clientes sobre o novo chamado
     emitToAll('chamado:novo', populado);
 
-    // 🔔 Socket.io: Notificação pessoal para o atendente responsável
-    const atendenteId = dadosParaSalvar.atendente || req.usuario.id;
-    if (atendenteId) {
+    // 🔔 Socket.io: Notificação pessoal rica para o atendente responsável
+    const atendenteId = dadosParaSalvar.atendente;
+    if (atendenteId && atendenteId.toString() !== req.usuario.id.toString()) {
       emitToRoom(`user:${atendenteId}`, 'notificacao:nova', {
-        tipo: 'chamado_criado',
-        mensagem: `Novo chamado atribuído a você: #${populado.numeroProtocolo}`,
+        id: `atd-${populado._id}-${Date.now()}`,
+        tipo: 'chamado_atribuido',
+        titulo: 'Novo Chamado Atribuído',
+        mensagem: `O chamado #${populado.numeroProtocolo} (${populado.assuntoEspecifico || populado.categoriaAssunto}) foi atribuído a você.`,
+        autor: populado.criadoPor?.nomeCompleto || 'Sistema',
         chamadoId: populado._id,
-        chamado: populado,
-        timestamp: new Date().toISOString()
+        numeroProtocolo: populado.numeroProtocolo,
+        nomeCliente: populado.nomeCliente || populado.tipoCliente,
+        assunto: populado.assuntoEspecifico || populado.categoriaAssunto,
+        prioridade: populado.nivelPrioridade,
+        status: populado.avanco,
+        timestamp: new Date().toISOString(),
+        lida: false
       });
     }
 
@@ -188,6 +196,26 @@ export const criarSubChamado = async (req, res) => {
 
     // 🔔 Socket.io: Notifica todos sobre o novo sub-chamado
     emitToAll('chamado:novo', populado);
+
+    // 🔔 Notificação pessoal para o atendente responsável do sub-chamado
+    const atendenteSubId = dadosParaSalvar.atendente;
+    if (atendenteSubId && atendenteSubId.toString() !== req.usuario.id.toString()) {
+      emitToRoom(`user:${atendenteSubId}`, 'notificacao:nova', {
+        id: `sub-${populado._id}-${Date.now()}`,
+        tipo: 'chamado_atribuido',
+        titulo: 'Novo Sub-chamado Atribuído',
+        mensagem: `Sub-chamado #${populado.numeroProtocolo} (Pai: #${atendimentoExistente.numeroProtocolo}) atribuído a você.`,
+        autor: populado.criadoPor?.nomeCompleto || 'Equipe',
+        chamadoId: populado._id,
+        numeroProtocolo: populado.numeroProtocolo,
+        nomeCliente: populado.nomeCliente || populado.tipoCliente,
+        assunto: populado.assuntoEspecifico,
+        prioridade: populado.nivelPrioridade,
+        status: populado.avanco,
+        timestamp: new Date().toISOString(),
+        lida: false
+      });
+    }
 
     res.status(201).json(populado);
   } catch (error) {
@@ -318,16 +346,58 @@ export const atualizarAtendimento = async (req, res) => {
     // 🔔 Socket.io: Notifica todos sobre a atualização
     emitToAll('chamado:atualizado', atualizado);
 
-    // 🔔 Notificação pessoal para o atendente responsável
-    const atendenteAtualizado = atualizado.atendente ? atualizado.atendente._id || atualizado.atendente : null;
-    if (atendenteAtualizado) {
-      emitToRoom(`user:${atendenteAtualizado}`, 'notificacao:nova', {
-        tipo: 'chamado_atualizado',
-        mensagem: `Chamado #${atualizado.numeroProtocolo} foi atualizado`,
-        chamadoId: atualizado._id,
-        chamado: atualizado,
-        timestamp: new Date().toISOString()
-      });
+    // Identifica o autor da ação
+    let nomeAutor = 'Colega de equipe';
+    try {
+      const u = await Usuario.findById(req.usuario.id).select('nomeCompleto');
+      if (u) nomeAutor = u.nomeCompleto;
+    } catch (e) { /* silencioso */ }
+
+    // Identifica o que mudou para criar notificação específica
+    const statusMudou = atendimentoExistente.avanco !== atualizado.avanco;
+    const atendenteAnteriorId = atendimentoExistente.atendente ? atendimentoExistente.atendente.toString() : null;
+    const atendenteNovoId = atualizado.atendente ? (atualizado.atendente._id ? atualizado.atendente._id.toString() : atualizado.atendente.toString()) : null;
+    const atendenteMudou = atendenteNovoId && atendenteNovoId !== atendenteAnteriorId;
+
+    let tipoNotif = 'chamado_atualizado';
+    let tituloNotif = 'Chamado Atualizado';
+    let mensagemNotif = `${nomeAutor} atualizou o chamado #${atualizado.numeroProtocolo}.`;
+
+    if (atendenteMudou) {
+      tipoNotif = 'chamado_atribuido';
+      tituloNotif = 'Chamado Transferido para Você';
+      mensagemNotif = `${nomeAutor} transferiu o chamado #${atualizado.numeroProtocolo} (${atualizado.assuntoEspecifico || atualizado.categoriaAssunto}) para você.`;
+    } else if (statusMudou) {
+      tipoNotif = 'status_alterado';
+      tituloNotif = `Status Alterado: ${atualizado.avanco?.toUpperCase()}`;
+      mensagemNotif = `${nomeAutor} alterou o status de #${atualizado.numeroProtocolo} para "${atualizado.avanco}".`;
+    }
+
+    const payloadNotif = {
+      id: `upd-${atualizado._id}-${Date.now()}`,
+      tipo: tipoNotif,
+      titulo: tituloNotif,
+      mensagem: mensagemNotif,
+      autor: nomeAutor,
+      chamadoId: atualizado._id,
+      numeroProtocolo: atualizado.numeroProtocolo,
+      nomeCliente: atualizado.nomeCliente || atualizado.tipoCliente,
+      assunto: atualizado.assuntoEspecifico || atualizado.categoriaAssunto,
+      prioridade: atualizado.nivelPrioridade,
+      status: atualizado.avanco,
+      timestamp: new Date().toISOString(),
+      lida: false
+    };
+
+    // Notifica o novo atendente se for diferente de quem editou
+    if (atendenteNovoId && atendenteNovoId !== req.usuario.id.toString()) {
+      emitToRoom(`user:${atendenteNovoId}`, 'notificacao:nova', payloadNotif);
+    }
+
+    // Notifica o criador do chamado se for diferente de quem editou e do novo atendente
+    const criadorId = atualizado.criadoPor ? (atualizado.criadoPor._id ? atualizado.criadoPor._id.toString() : atualizado.criadoPor.toString()) : null;
+    if (criadorId && criadorId !== req.usuario.id.toString() && criadorId !== atendenteNovoId) {
+      emitToRoom(`user:${criadorId}`, 'notificacao:nova', payloadNotif);
     }
     
     res.json(atualizado);
@@ -651,6 +721,47 @@ export const adicionarComentario = async (req, res) => {
 
     if (!atendimentoAtualizado) {
       return res.status(404).json({ message: "Chamado não encontrado" });
+    }
+
+    // 🔔 Socket.io: Notifica atualização em tempo real
+    emitToAll('chamado:atualizado', atendimentoAtualizado);
+
+    // Identifica o autor do comentário
+    let nomeAutor = 'Colega de equipe';
+    try {
+      const u = await Usuario.findById(req.usuario.id).select('nomeCompleto');
+      if (u) nomeAutor = u.nomeCompleto;
+    } catch (e) { /* silencioso */ }
+
+    const trechoComentario = novoComentario.mensagem.length > 60 
+      ? novoComentario.mensagem.slice(0, 60) + '...' 
+      : novoComentario.mensagem;
+
+    const notifComentario = {
+      id: `com-${atendimentoAtualizado._id}-${Date.now()}`,
+      tipo: 'novo_comentario',
+      titulo: `Novo Comentário em #${atendimentoAtualizado.numeroProtocolo}`,
+      mensagem: `${nomeAutor}: "${trechoComentario}"`,
+      autor: nomeAutor,
+      chamadoId: atendimentoAtualizado._id,
+      numeroProtocolo: atendimentoAtualizado.numeroProtocolo,
+      nomeCliente: atendimentoAtualizado.nomeCliente || atendimentoAtualizado.tipoCliente,
+      assunto: atendimentoAtualizado.assuntoEspecifico || atendimentoAtualizado.categoriaAssunto,
+      prioridade: atendimentoAtualizado.nivelPrioridade,
+      status: atendimentoAtualizado.avanco,
+      timestamp: new Date().toISOString(),
+      lida: false
+    };
+
+    // Notifica atendente e criador (exceto quem comentou)
+    const atendenteId = atendimentoAtualizado.atendente ? (atendimentoAtualizado.atendente._id ? atendimentoAtualizado.atendente._id.toString() : atendimentoAtualizado.atendente.toString()) : null;
+    const criadorId = atendimentoAtualizado.criadoPor ? (atendimentoAtualizado.criadoPor._id ? atendimentoAtualizado.criadoPor._id.toString() : atendimentoAtualizado.criadoPor.toString()) : null;
+
+    if (atendenteId && atendenteId !== req.usuario.id.toString()) {
+      emitToRoom(`user:${atendenteId}`, 'notificacao:nova', notifComentario);
+    }
+    if (criadorId && criadorId !== req.usuario.id.toString() && criadorId !== atendenteId) {
+      emitToRoom(`user:${criadorId}`, 'notificacao:nova', notifComentario);
     }
 
     res.status(201).json(atendimentoAtualizado);
