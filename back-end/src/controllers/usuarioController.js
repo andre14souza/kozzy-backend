@@ -2,10 +2,13 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { Usuario } from "../models/Usuario.js";
 import Area from "../models/Area.js";
+import { getFileInfo } from "../middleware/upload.js";
 
 // Helper: Limpa caminhos de fotos de perfil para o formato padrão /uploads/nome
+// Mantém URLs remotas do Cloudinary (http/https) intactas.
 const limparCaminho = (caminho) => {
   if (!caminho || typeof caminho !== "string") return "";
+  if (caminho.startsWith("http")) return caminho;
   const nomeArquivo = caminho.split(/[\\/]/).pop();
   return `/uploads/${nomeArquivo}`;
 };
@@ -19,7 +22,7 @@ export const criarUsuario = async (req, res) => {
 
     const hash = await bcrypt.hash(senha, 10);
 
-    const foto = req.file ? `/uploads/${req.file.filename}` : limparCaminho(fotoPerfil || avatar);
+    const foto = req.file ? getFileInfo(req.file).url : limparCaminho(fotoPerfil || avatar);
 
     // 1. Cria o Usuário
     const novoUsuario = new Usuario({
@@ -118,7 +121,7 @@ export const atualizarUsuario = async (req, res) => {
     if (email !== undefined) updateData.email = email;
     if (perfilAcesso !== undefined) updateData.perfilAcesso = perfilAcesso;
 
-    const foto = req.file ? `/uploads/${req.file.filename}` : (fotoPerfil !== undefined || avatar !== undefined ? limparCaminho(fotoPerfil || avatar) : undefined);
+    const foto = req.file ? getFileInfo(req.file).url : (fotoPerfil !== undefined || avatar !== undefined ? limparCaminho(fotoPerfil || avatar) : undefined);
     if (foto !== undefined) {
       updateData.fotoPerfil = foto;
     }
@@ -185,7 +188,7 @@ export const atualizarPerfil = async (req, res) => {
       updateData.senha = await bcrypt.hash(senha, 10);
     }
 
-    const foto = req.file ? `/uploads/${req.file.filename}` : (fotoPerfil !== undefined || avatar !== undefined ? limparCaminho(fotoPerfil || avatar) : undefined);
+    const foto = req.file ? getFileInfo(req.file).url : (fotoPerfil !== undefined || avatar !== undefined ? limparCaminho(fotoPerfil || avatar) : undefined);
     if (foto !== undefined) {
       updateData.fotoPerfil = foto;
     }
@@ -288,7 +291,7 @@ export const uploadFotoPerfil = async (req, res) => {
 
     let foto = "";
     if (req.file) {
-      foto = `/uploads/${req.file.filename}`;
+      foto = getFileInfo(req.file).url;
     } else if (req.body.foto || req.body.fotoPerfil || req.body.avatar) {
       foto = limparCaminho(req.body.foto || req.body.fotoPerfil || req.body.avatar);
     } else {
