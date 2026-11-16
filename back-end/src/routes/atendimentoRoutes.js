@@ -152,7 +152,7 @@ router.get("/:id", autenticar, buscarAtendimento);
  *       200:
  *         description: Atendimento atualizado
  */
-router.put("/:id", autenticar, atualizarAtendimento);
+router.put("/:id", autenticar, upload.array('anexos', 10), atualizarAtendimento);
 
 /**
  * @swagger

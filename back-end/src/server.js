@@ -7,6 +7,7 @@ import fs from "fs";
 import http from "http";
 import { Server } from "socket.io";
 import { fileURLToPath } from "url";
+import jwt from "jsonwebtoken";
 import { connectDB } from "./config/db.js";
 import usuarioRoutes from "./routes/usuarioRoutes.js";
 import atendimentoRoutes from "./routes/atendimentoRoutes.js";
@@ -42,6 +43,28 @@ const io = new Server(httpServer, {
 
 // Registra a instância do io para uso nos controllers
 setIO(io);
+
+// Middleware de autenticação JWT no handshake do Socket.io
+io.use((socket, next) => {
+  try {
+    const token =
+      socket.handshake.auth?.token ||
+      socket.handshake.headers?.authorization?.split(' ')[1];
+
+    if (!token) {
+      // Permite conexão sem token (modo anônimo), mas socket.usuario ficará undefined
+      return next();
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.usuario = decoded;
+    next();
+  } catch (err) {
+    // Token inválido: ainda permite conexão mas registra o erro (compatibilidade retroativa)
+    console.warn('[Socket.io] Token inválido no handshake:', err.message);
+    next();
+  }
+});
 
 // Eventos de conexão
 io.on('connection', (socket) => {
@@ -85,7 +108,6 @@ io.on('connection', (socket) => {
 
 // 💥 ESSENCIAL PARA AMBIENTES PROXY (RENDER). Diz ao Express para confiar no cabeçalho HTTPS
 app.set('trust proxy', 1); 
-app.use(cookieParser());
 
 // Middlewares
 app.use(cors({
@@ -105,10 +127,6 @@ if (!fs.existsSync(uploadsDir)) {
 }
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-app.get('/api/test-cookie', (req, res) => {
-    res.json({ cookies: req.cookies, tokenPresent: !!req.cookies.token });
-});
-
 // Rotas: 
 app.use("/api/usuarios", usuarioRoutes);
 app.use("/api/atendimentos", atendimentoRoutes);
@@ -121,6 +139,16 @@ connectDB();
 // Rota padrão e Swagger
 app.get("/", (req, res) => res.send("API rodando com sucesso!"));
 swaggerDocs(app);
+
+// Middleware global de tratamento de erros
+app.use((err, req, res, next) => {
+  console.error('[API Error]', err);
+  const status = err.status || 500;
+  res.status(status).json({
+    message: err.message || "Erro interno do servidor",
+    ...(process.env.NODE_ENV === 'development' ? { stack: err.stack } : {})
+  });
+});
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT} (Socket.io ativo)`));

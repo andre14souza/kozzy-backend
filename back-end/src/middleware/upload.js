@@ -54,10 +54,21 @@ if (hasCloudinary) {
   console.log("[Upload] Cloudinary não configurado. Usando armazenamento em disco local.");
 }
 
+// Extensões bloqueadas por segurança
+const BLOCKED_EXTENSIONS = /\.(exe|bat|cmd|sh|php|phtml|vbs|msi|com|scr|jar|pl|cgi)$/i;
+
+const fileFilter = (req, file, cb) => {
+  if (BLOCKED_EXTENSIONS.test(file.originalname)) {
+    return cb(new Error("Tipo de arquivo não permitido por motivos de segurança."), false);
+  }
+  cb(null, true);
+};
+
 // ─── Multer instance ───────────────────────────────────────────────────────
 export const upload = multer({
   storage: storageEngine,
-  limits: { fileSize: 20 * 1024 * 1024 } // 20 MB por arquivo
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB por arquivo
+  fileFilter
 });
 
 // Helper para extrair URL + nomeOriginal de um arquivo processado pelo Multer

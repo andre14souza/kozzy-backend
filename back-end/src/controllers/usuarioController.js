@@ -15,6 +15,13 @@ const limparCaminho = (caminho) => {
 
 export const criarUsuario = async (req, res) => {
   try {
+    const totalUsuarios = await Usuario.countDocuments();
+    if (totalUsuarios > 0) {
+      if (!req.usuario || req.usuario.perfilAcesso !== 'supervisor') {
+        return res.status(403).json({ message: "Apenas supervisores autenticados podem cadastrar novos usuários." });
+      }
+    }
+
     const { nomeCompleto, email, senha, perfilAcesso, fotoPerfil, avatar } = req.body;
 
     const existe = await Usuario.findOne({ email });
@@ -114,6 +121,10 @@ export const buscarUsuario = async (req, res) => {
 
 export const atualizarUsuario = async (req, res) => {
   try {
+    if (req.usuario.perfilAcesso !== 'supervisor' && req.usuario.id !== req.params.id) {
+      return res.status(403).json({ message: "Acesso negado. Apenas supervisores podem editar outros usuários." });
+    }
+
     const { nomeCompleto, email, perfilAcesso, fotoPerfil, avatar } = req.body;
 
     const updateData = {};
@@ -179,11 +190,12 @@ export const atualizarPerfil = async (req, res) => {
 
     // Se informou nova senha
     if (senha && senha.trim() !== '') {
-      if (senhaAntiga) {
-        const senhaCorreta = await bcrypt.compare(senhaAntiga, usuarioExistente.senha);
-        if (!senhaCorreta) {
-          return res.status(400).json({ message: "A senha atual informada está incorreta." });
-        }
+      if (!senhaAntiga) {
+        return res.status(400).json({ message: "A senha atual é obrigatória para definir uma nova senha." });
+      }
+      const senhaCorreta = await bcrypt.compare(senhaAntiga, usuarioExistente.senha);
+      if (!senhaCorreta) {
+        return res.status(400).json({ message: "A senha atual informada está incorreta." });
       }
       updateData.senha = await bcrypt.hash(senha, 10);
     }
@@ -219,8 +231,19 @@ export const atualizarPerfil = async (req, res) => {
 
 export const deletarUsuario = async (req, res) => {
   try {
+    if (req.usuario?.perfilAcesso !== 'supervisor') {
+      return res.status(403).json({ message: "Acesso negado. Apenas supervisores podem excluir usuários." });
+    }
+    if (req.usuario.id === req.params.id) {
+      return res.status(400).json({ message: "Você não pode excluir a sua própria conta." });
+    }
+
     const usuario = await Usuario.findByIdAndDelete(req.params.id);
     if (!usuario) return res.status(404).json({ message: "Usuário não encontrado." });
+    
+    // Remove também o registro de área vinculada
+    await Area.findOneAndDelete({ usuarioId: req.params.id });
+
     res.json({ message: "Usuário deletado com sucesso" });
   } catch (error) {
     res.status(500).json({ message: "Erro ao deletar usuário", error });

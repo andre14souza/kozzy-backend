@@ -11,8 +11,21 @@ import {
   atualizarPerfil,
   uploadFotoPerfil,
 } from "../controllers/usuarioController.js";
-import { autenticar } from "../middleware/authMiddleware.js";
+import { autenticar, apenasSupervisor } from "../middleware/authMiddleware.js";
 import { upload } from "../middleware/upload.js";
+import jwt from "jsonwebtoken";
+
+const autenticarOpcional = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.split(' ')[1];
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      req.usuario = decoded;
+    } catch (e) {}
+  }
+  next();
+};
 
 const router = express.Router();
 
@@ -52,7 +65,7 @@ const router = express.Router();
  *       201:
  *         description: Usuário criado com sucesso
  */
-router.post("/register", criarUsuario);
+router.post("/register", autenticarOpcional, criarUsuario);
 
 /**
  * @swagger
@@ -229,7 +242,7 @@ router.put("/:id", autenticar, upload.single("foto"), atualizarUsuario);
  *       200:
  *         description: Usuário removido
  */
-router.delete("/:id", autenticar, deletarUsuario);
+router.delete("/:id", autenticar, apenasSupervisor, deletarUsuario);
 
 /**
  * @swagger

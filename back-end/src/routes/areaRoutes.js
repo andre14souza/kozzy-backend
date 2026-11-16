@@ -6,7 +6,7 @@ import {
   atualizarAreas,
   deletarAreas
 } from "../controllers/areaController.js";
-import { autenticar } from "../middleware/authMiddleware.js";
+import { autenticar, apenasSupervisor } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -44,7 +44,7 @@ const router = express.Router();
  *       201:
  *         description: Áreas cadastradas
  */
-router.post("/", autenticar, criarArea);
+router.post("/", autenticar, apenasSupervisor, criarArea);
 
 /**
  * @swagger
@@ -106,7 +106,7 @@ router.get("/:usuarioId", autenticar, buscarAreasPorUsuario);
  *       200:
  *         description: Áreas atualizadas
  */
-router.put("/:usuarioId", autenticar, atualizarAreas);
+router.put("/:usuarioId", autenticar, apenasSupervisor, atualizarAreas);
 
 /**
  * @swagger
@@ -124,6 +124,6 @@ router.put("/:usuarioId", autenticar, atualizarAreas);
  *       200:
  *         description: Áreas removidas
  */
-router.delete("/:usuarioId", autenticar, deletarAreas);
+router.delete("/:usuarioId", autenticar, apenasSupervisor, deletarAreas);
 
 export default router;

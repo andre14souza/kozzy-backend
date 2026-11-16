@@ -264,6 +264,13 @@ export const atualizarAtendimento = async (req, res) => {
       const statusPermitidos = ["aberto", "em andamento", "concluido", "encerrado"];
       if (statusPermitidos.includes(avancoRaw)) {
         dadosFormatados.avanco = avancoRaw;
+        if (avancoRaw === 'concluido' || avancoRaw === 'encerrado') {
+          dadosFormatados.dataConclusao = new Date();
+          dadosFormatados.horaConclusao = new Date().toTimeString().slice(0, 5);
+        } else {
+          dadosFormatados.dataConclusao = null;
+          dadosFormatados.horaConclusao = null;
+        }
       }
     }
     
@@ -409,11 +416,23 @@ export const atualizarAtendimento = async (req, res) => {
 
 // Helper: rejeita valores inúteis vindos da query string
 const isValid = (val) => val !== undefined && val !== null && val !== '' && val !== 'todos';
+const escapeRegex = (str) => typeof str === 'string' ? str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
 
 export const listarAtendimentos = async (req, res) => {
   try {
     const { id, perfilAcesso } = req.usuario;
-    const { status, prioridade, cliente, area, origem, atendente, dataInicio, dataFim, numeroProtocolo, prioridadeMinima, apenasHoje } = req.query;
+    const { 
+      status, avanco,
+      prioridade, nivelPrioridade,
+      cliente, tipoCliente,
+      area, categoriaAssunto,
+      origem, atendente, dataInicio, dataFim, numeroProtocolo, prioridadeMinima, apenasHoje 
+    } = req.query;
+
+    const statusFiltro = status || avanco;
+    const prioridadeFiltro = prioridade || nivelPrioridade;
+    const clienteFiltro = cliente || tipoCliente;
+    const areaFiltro = area || categoriaAssunto;
 
     // ─── 1. Construção dinâmica do filtro ────────────────────────────────────
     let filtroQuery = {};
@@ -426,19 +445,19 @@ export const listarAtendimentos = async (req, res) => {
       filtroQuery.numeroProtocolo = numeroProtocolo; // Busca exata
     }
 
-    if (isValid(status)) {
-      filtroQuery.avanco = { $regex: new RegExp(`^${status}$`, 'i') };
+    if (isValid(statusFiltro)) {
+      filtroQuery.avanco = { $regex: new RegExp(`^${escapeRegex(statusFiltro)}$`, 'i') };
     }
     
     if (prioridadeMinima === 'true') {
       filtroQuery.nivelPrioridade = { $in: ['Alta Prioridade', 'Urgente', 'Alta'] };
-    } else if (isValid(prioridade)) {
-      filtroQuery.nivelPrioridade = { $regex: new RegExp(`^${prioridade}$`, 'i') };
+    } else if (isValid(prioridadeFiltro)) {
+      filtroQuery.nivelPrioridade = { $regex: new RegExp(`^${escapeRegex(prioridadeFiltro)}$`, 'i') };
     }
 
-    if (isValid(cliente)) {
-      // Busca parcial e case-insensitive
-      filtroQuery.tipoCliente = { $regex: cliente, $options: 'i' };
+    if (isValid(clienteFiltro)) {
+      // Busca parcial e case-insensitive protegida contra ReDoS
+      filtroQuery.tipoCliente = { $regex: escapeRegex(clienteFiltro), $options: 'i' };
     }
 
     if (apenasHoje === 'true') {
@@ -450,7 +469,7 @@ export const listarAtendimentos = async (req, res) => {
     if (isValid(atendente))  filtroQuery.atendente        = atendente; // ObjectId enviado pelo frontend
 
     // Filtro por área (pode ser sobrescrito pela regra de segurança abaixo)
-    if (isValid(area))       filtroQuery.categoriaAssunto = area;
+    if (isValid(areaFiltro)) filtroQuery.categoriaAssunto = areaFiltro;
 
     // Intervalo de datas sobre dataAtendimento
     if (isValid(dataInicio) || isValid(dataFim)) {
@@ -489,17 +508,26 @@ export const listarAtendimentos = async (req, res) => {
       }
     }
 
-    // ─── 3. Execução da query ────────────────────────────────────────────────
+    // ─── 3. Execução da query com paginação ──────────────────────────────────
     console.log("================ FILTRO DA QUERY (listarAtendimentos) ================");
     console.log(JSON.stringify(filtroQuery, null, 2));
     console.log("======================================================================");
 
-    const atendimentos = await Atendimento.find(filtroQuery)
-      .populate('criadoPor', 'nomeCompleto email')
-      .populate('atendente', 'nomeCompleto')
-      .populate('comentarios.usuario', 'nomeCompleto')
-      .populate('subChamados')
-      .sort({ createdAt: -1 });
+    const page  = Math.max(1, parseInt(req.query.page  || '1', 10));
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit || '100', 10)));
+    const skip  = (page - 1) * limit;
+
+    const [atendimentos, total] = await Promise.all([
+      Atendimento.find(filtroQuery)
+        .populate('criadoPor', 'nomeCompleto email')
+        .populate('atendente', 'nomeCompleto')
+        .populate('comentarios.usuario', 'nomeCompleto')
+        .populate('subChamados')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Atendimento.countDocuments(filtroQuery)
+    ]);
 
     // ─── Proteção contra Referências Deletadas (Populate Null Guard) e Privacidade ───
     const atendimentosProcessados = atendimentos.map(atd => {
@@ -538,8 +566,23 @@ export const listarAtendimentos = async (req, res) => {
       return obj;
     });
 
-    // Garante retorno de array puro
-    res.json(Array.isArray(atendimentosProcessados) ? atendimentosProcessados : []);
+    // Garante retorno de array puro + metadados de paginação
+    // Para manter retrocompatibilidade o campo "data" contém o array e "meta" contém a paginação.
+    // Se o front não enviar "page", retornamos o formato antigo (array direto) para não quebrar
+    // chamadas que ainda não usam paginação.
+    if (req.query.page) {
+      res.json({
+        data: Array.isArray(atendimentosProcessados) ? atendimentosProcessados : [],
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit)
+        }
+      });
+    } else {
+      res.json(Array.isArray(atendimentosProcessados) ? atendimentosProcessados : []);
+    }
   } catch (error) {
     console.error("ERRO AO LISTAR ATENDIMENTOS:", error);
     res.status(500).json({ message: "Erro ao carregar chamados" });
@@ -624,6 +667,15 @@ export const buscarAtendimento = async (req, res) => {
       .populate('comentarios.usuario', 'nomeCompleto')
       .populate('subChamados', 'numeroProtocolo assuntoEspecifico avanco nivelPrioridade');
     if (!atendimento) return res.status(404).json({ message: "Não encontrado" });
+
+    // Restrição estrita de área para perfis departamentais
+    if (req.usuario?.perfilAcesso !== 'supervisor' && req.usuario?.perfilAcesso !== 'atendente') {
+      const areaVinculada = await Area.findOne({ usuarioId: req.usuario.id });
+      const areasPermitidas = areaVinculada?.areas || [];
+      if (!areasPermitidas.includes(atendimento.categoriaAssunto)) {
+        return res.status(403).json({ message: "Acesso negado. Você não tem permissão para visualizar chamados desta área." });
+      }
+    }
 
     const atdObj = atendimento.toObject();
 
@@ -790,9 +842,25 @@ export const obterEstatisticas = async (req, res) => {
       }
     ]);
 
+    const porStatus = estatisticasStatus.map(s => ({ status: s._id, total: s.total }));
+    const porArea = estatisticasArea.map(a => ({ area: a._id, total: a.total }));
+
+    // Formato de dicionário chave-valor compatível com o dashboard
+    const chamadosPorStatus = {};
+    for (const s of porStatus) {
+      if (s.status) chamadosPorStatus[s.status] = s.total;
+    }
+
+    const chamadosPorArea = {};
+    for (const a of porArea) {
+      if (a.area) chamadosPorArea[a.area] = a.total;
+    }
+
     res.json({
-      porStatus: estatisticasStatus.map(s => ({ status: s._id, total: s.total })),
-      porArea: estatisticasArea.map(a => ({ area: a._id, total: a.total }))
+      porStatus,
+      porArea,
+      chamadosPorStatus,
+      chamadosPorArea
     });
 
   } catch (error) {
